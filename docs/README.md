@@ -5,6 +5,7 @@ Start here:
 - [Quickstart](./quickstart.md)
 - [Install](./install.md)
 - [Demo](./demo.md)
+- [Public release prep](./release-prep.md)
 - [LangGraph adapter](./adapters/langgraph.md)
 - [OpenHands adapter](./adapters/openhands.md)
 

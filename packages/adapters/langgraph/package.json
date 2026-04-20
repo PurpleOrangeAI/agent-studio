@@ -17,6 +17,7 @@
   ],
   "scripts": {
     "build": "tsc -p tsconfig.json",
+    "lint": "tsc -p tsconfig.json --noEmit && tsc -p tsconfig.examples.json --noEmit",
     "test": "vitest run",
     "check:examples": "tsc -p tsconfig.examples.json --noEmit"
   },

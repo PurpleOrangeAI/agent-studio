@@ -16,6 +16,7 @@
     "dist"
   ],
   "scripts": {
+    "lint": "tsc -p tsconfig.json --noEmit",
     "build": "tsc -p tsconfig.json"
   },
   "dependencies": {
