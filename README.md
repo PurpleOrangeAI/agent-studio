@@ -1,15 +1,28 @@
 # Agent Studio
 
-Purple Orange AI Agent Studio is the open control room for multi-agent systems.
+The open control room for multi-agent systems.
 
-This repository is the standalone public skeleton. It will grow into:
+Agent Studio is runtime-agnostic, replay-first, evidence-backed, and built around a safe release loop. It is not another agent builder and it is not a generic RAG chat tool.
 
-- `apps/web` for the public UI
-- `apps/api` for ingestion and replay services
-- `packages/contracts` for shared runtime contracts
-- `packages/sdk-js` and `packages/sdk-python` for instrumentation
-- `packages/demo` for the seeded local demo
+## What ships here
 
-## Status
+- `apps/web` for the public demo shell with `Live`, `Replay`, and `Optimize`
+- `apps/api` for the local API and ingest surface
+- `packages/contracts` for the shared runtime contract
+- `packages/sdk-js` for JS instrumentation
+- `packages/sdk-python` for the Python path
+- `packages/demo` for the seeded demo dataset
+- `packages/adapters/langgraph` for the first shipped adapter
+- `packages/adapters/openhands` is planned, not shipped yet
 
-Task 1 scaffold only. Core product code, legal files, and docs will come later.
+## Read This First
+
+- [Install](./docs/install.md)
+- [Quickstart](./docs/quickstart.md)
+- [Demo](./docs/demo.md)
+- [LangGraph adapter](./docs/adapters/langgraph.md)
+- [OpenHands adapter](./docs/adapters/openhands.md)
+
+## Public launch
+
+This repo is the standalone open-source surface for Agent Studio. The public demo reads seeded data from the API, and the API defaults to `http://localhost:4000`.
