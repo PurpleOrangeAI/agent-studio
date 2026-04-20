@@ -64,7 +64,7 @@ export interface StepExecution {
   kind: PhaseKind;
   title: string;
   assignedRole: string;
-  status: RunStatus | string;
+  status: RunStatus;
   startedAt?: string;
   finishedAt?: string;
   durationMs?: number;
@@ -94,7 +94,7 @@ export interface RunExperimentAttribution {
 export interface Run extends RunExperimentAttribution {
   runId: string;
   workflowId: string;
-  status: RunStatus | string;
+  status: RunStatus;
   startedAt: string;
   finishedAt?: string;
   estimatedCredits?: number;

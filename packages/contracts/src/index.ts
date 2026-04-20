@@ -1,6 +1,5 @@
 export * from './types.js';
 export {
-  contractExamples,
   directiveModeSchema,
   executionModeSchema,
   experimentRecordSchema,
