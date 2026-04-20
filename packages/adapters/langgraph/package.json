@@ -17,7 +17,8 @@
   ],
   "scripts": {
     "build": "tsc -p tsconfig.json",
-    "test": "vitest run"
+    "test": "vitest run",
+    "check:examples": "tsc -p tsconfig.examples.json --noEmit"
   },
   "dependencies": {
     "@agent-studio/contracts": "workspace:*",
