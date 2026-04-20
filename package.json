@@ -1,0 +1,13 @@
+{
+  "name": "agent-studio",
+  "private": true,
+  "version": "0.0.0",
+  "description": "Purple Orange AI Agent Studio",
+  "scripts": {
+    "install": "node -e \"console.log('Use pnpm install from the repository root.')\"",
+    "dev": "pnpm -r --if-present dev",
+    "build": "pnpm -r --if-present build",
+    "lint": "pnpm -r --if-present lint",
+    "test": "pnpm -r --if-present test"
+  }
+}

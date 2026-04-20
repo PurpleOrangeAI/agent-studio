@@ -1,0 +1,6 @@
+{
+  "name": "@agent-studio/web",
+  "private": true,
+  "version": "0.0.0",
+  "description": "Public web app shell for Agent Studio"
+}

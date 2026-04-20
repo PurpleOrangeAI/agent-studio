@@ -1,0 +1,6 @@
+{
+  "name": "@agent-studio/contracts",
+  "private": true,
+  "version": "0.0.0",
+  "description": "Shared runtime contracts for Agent Studio"
+}

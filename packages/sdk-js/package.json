@@ -1,0 +1,6 @@
+{
+  "name": "@agent-studio/sdk-js",
+  "private": true,
+  "version": "0.0.0",
+  "description": "JavaScript SDK for Agent Studio"
+}
