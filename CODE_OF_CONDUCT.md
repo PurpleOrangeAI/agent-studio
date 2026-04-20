@@ -22,4 +22,4 @@ Project maintainers may remove or edit content, reject contributions, or take ot
 
 ## Reporting
 
-If you experience or witness a problem, report it privately through [SECURITY.md](SECURITY.md), which points to the repository's advisory channel.
+If you experience or witness a problem, report it privately to legal@purpleorange.io.

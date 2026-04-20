@@ -10,7 +10,7 @@ Do not open a public issue for a security problem.
 
 Send a private report here:
 
-https://github.com/purpleorangeai/agent-studio/security/advisories/new
+security@purpleorange.io
 
 Include:
 
