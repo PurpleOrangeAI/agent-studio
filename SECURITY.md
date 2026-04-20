@@ -8,7 +8,11 @@ Security fixes are tracked on the current public branch and released as needed.
 
 Do not open a public issue for a security problem.
 
-Send a private report to the maintainers with:
+Send a private report here:
+
+https://github.com/purpleorangeai/agent-studio/security/advisories/new
+
+Include:
 
 - a clear description of the issue
 - affected paths, versions, or environments
