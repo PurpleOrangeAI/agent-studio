@@ -4,10 +4,10 @@ import { vi } from 'vitest';
 import { basicExamplePayloads } from '../examples/basic.js';
 import { AgentStudioClient } from './client.js';
 import {
-  normalizeOperationalContext,
-  normalizeReplay,
-  normalizeRun,
-  normalizeWorkflow,
+  parseOperationalContext,
+  parseReplay,
+  parseRun,
+  parseWorkflow,
 } from './events.js';
 
 describe('AgentStudioClient', () => {
@@ -76,12 +76,12 @@ describe('AgentStudioClient', () => {
       );
     }
 
-    expect(JSON.parse(String(fetchMock.mock.calls[0]?.[1]?.body))).toEqual(normalizeWorkflow(basicExamplePayloads.workflow));
-    expect(JSON.parse(String(fetchMock.mock.calls[1]?.[1]?.body))).toEqual(normalizeRun(basicExamplePayloads.run));
+    expect(JSON.parse(String(fetchMock.mock.calls[0]?.[1]?.body))).toEqual(parseWorkflow(basicExamplePayloads.workflow));
+    expect(JSON.parse(String(fetchMock.mock.calls[1]?.[1]?.body))).toEqual(parseRun(basicExamplePayloads.run));
     expect(JSON.parse(String(fetchMock.mock.calls[2]?.[1]?.body))).toEqual(
-      normalizeOperationalContext(basicExamplePayloads.operationalContext),
+      parseOperationalContext(basicExamplePayloads.operationalContext),
     );
-    expect(JSON.parse(String(fetchMock.mock.calls[3]?.[1]?.body))).toEqual(normalizeReplay(basicExamplePayloads.replay));
+    expect(JSON.parse(String(fetchMock.mock.calls[3]?.[1]?.body))).toEqual(parseReplay(basicExamplePayloads.replay));
   });
 
   it('rejects operational-context payloads that do not satisfy the current ingest contract', () => {
@@ -90,13 +90,31 @@ describe('AgentStudioClient', () => {
       runId: undefined,
     };
 
-    expect(() => normalizeOperationalContext(operationalContext)).toThrow(/runId is required/i);
+    expect(() => parseOperationalContext(operationalContext)).toThrow(/runId is required/i);
     expect(() =>
-      normalizeReplay({
+      parseReplay({
         ...basicExamplePayloads.replay,
         operationalContext,
       }),
     ).toThrow(/runId is required/i);
+  });
+
+  it('rejects malformed success payloads before returning typed results', async () => {
+    const fetchMock = vi.fn<typeof fetch>().mockResolvedValueOnce(
+      new Response(JSON.stringify({ workflow: { workflowId: 'missing-required-fields' } }), {
+        status: 201,
+        headers: {
+          'content-type': 'application/json; charset=utf-8',
+        },
+      }),
+    );
+
+    const client = new AgentStudioClient({
+      baseUrl: 'https://agent-studio.test',
+      fetch: fetchMock,
+    });
+
+    await expect(client.ingestWorkflow(basicExamplePayloads.workflow)).rejects.toThrow();
   });
 
   it('keeps the basic example payloads valid against the shared contract', () => {

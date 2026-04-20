@@ -2,13 +2,13 @@ import { pathToFileURL } from 'node:url';
 
 import {
   AgentStudioClient,
-  normalizeOperationalContext,
-  normalizeReplay,
-  normalizeRun,
-  normalizeWorkflow,
+  parseOperationalContext,
+  parseReplay,
+  parseRun,
+  parseWorkflow,
 } from '../src/index.js';
 
-const workflow = normalizeWorkflow({
+const workflow = parseWorkflow({
   workspaceId: 'workspace_ops',
   workspaceName: 'Ops Workspace',
   workflowId: 'workflow_daily_brief',
@@ -56,7 +56,7 @@ const workflow = normalizeWorkflow({
   },
 });
 
-const run = normalizeRun({
+const run = parseRun({
   runId: 'run_daily_brief_2026_04_20',
   workflowId: workflow.workflowId,
   status: 'succeeded',
@@ -71,7 +71,7 @@ const run = normalizeRun({
   previewPresetLabel: 'Recommended',
 });
 
-const operationalContext = normalizeOperationalContext({
+const operationalContext = parseOperationalContext({
   workflowId: workflow.workflowId,
   runId: run.runId,
   generatedAt: '2026-04-20T13:03:45.000Z',
@@ -100,7 +100,7 @@ const operationalContext = normalizeOperationalContext({
   ],
 });
 
-const replay = normalizeReplay({
+const replay = parseReplay({
   workflow,
   run,
   stepExecutions: [

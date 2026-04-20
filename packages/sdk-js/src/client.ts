@@ -1,11 +1,13 @@
-import type { OperationalContext, Replay, Run, Workflow } from '@agent-studio/contracts';
-
 import {
-  normalizeOperationalContext,
-  normalizeReplay,
-  normalizeRun,
-  normalizeWorkflow,
-} from './events.js';
+  operationalContextSchema,
+  replaySchema,
+  runSchema,
+  workflowSchema,
+  type OperationalContext,
+  type Replay,
+  type Run,
+  type Workflow,
+} from '@agent-studio/contracts';
 
 export interface AgentStudioClientOptions {
   baseUrl: string;
@@ -40,23 +42,31 @@ export class AgentStudioClient {
     this.headers = options.headers;
   }
 
-  ingestWorkflow(payload: unknown): Promise<IngestWorkflowResult> {
-    return this.post('/api/ingest/workflows', normalizeWorkflow(payload));
+  ingestWorkflow(workflow: Workflow): Promise<IngestWorkflowResult> {
+    return this.post('/api/ingest/workflows', workflow, parseIngestWorkflowResult);
   }
 
-  ingestRun(payload: unknown): Promise<IngestRunResult> {
-    return this.post('/api/ingest/runs', normalizeRun(payload));
+  ingestRun(run: Run): Promise<IngestRunResult> {
+    return this.post('/api/ingest/runs', run, parseIngestRunResult);
   }
 
-  ingestReplay(payload: unknown): Promise<IngestReplayResult> {
-    return this.post('/api/ingest/replays', normalizeReplay(payload));
+  ingestReplay(replay: Replay): Promise<IngestReplayResult> {
+    return this.post('/api/ingest/replays', replay, parseIngestReplayResult);
   }
 
-  ingestOperationalContext(payload: unknown): Promise<IngestOperationalContextResult> {
-    return this.post('/api/ingest/operational-contexts', normalizeOperationalContext(payload));
+  ingestOperationalContext(operationalContext: OperationalContext): Promise<IngestOperationalContextResult> {
+    return this.post(
+      '/api/ingest/operational-contexts',
+      operationalContext,
+      parseIngestOperationalContextResult,
+    );
   }
 
-  private async post<TResponse>(pathname: string, payload: unknown): Promise<TResponse> {
+  private async post<TPayload, TResponse>(
+    pathname: string,
+    payload: TPayload,
+    parseResponse: (value: unknown) => TResponse,
+  ): Promise<TResponse> {
     const response = await this.fetchImpl(new URL(pathname, this.baseUrl).toString(), {
       method: 'POST',
       headers: createHeaders(this.headers),
@@ -69,7 +79,7 @@ export class AgentStudioClient {
       throw new Error(buildRequestError(pathname, response.status, body));
     }
 
-    return body as TResponse;
+    return parseResponse(body);
   }
 }
 
@@ -118,4 +128,40 @@ function buildRequestError(pathname: string, status: number, body: unknown): str
   }
 
   return `Agent Studio ingest failed for ${pathname} with status ${status}.`;
+}
+
+function parseIngestWorkflowResult(value: unknown): IngestWorkflowResult {
+  return {
+    workflow: workflowSchema.parse(readNamedPayload(value, 'workflow')),
+  };
+}
+
+function parseIngestRunResult(value: unknown): IngestRunResult {
+  return {
+    run: runSchema.parse(readNamedPayload(value, 'run')),
+  };
+}
+
+function parseIngestReplayResult(value: unknown): IngestReplayResult {
+  return {
+    replay: replaySchema.parse(readNamedPayload(value, 'replay')),
+  };
+}
+
+function parseIngestOperationalContextResult(value: unknown): IngestOperationalContextResult {
+  const operationalContext = operationalContextSchema.parse(readNamedPayload(value, 'operationalContext'));
+
+  if (!operationalContext.runId) {
+    throw new Error('Agent Studio ingest response is missing operationalContext.runId.');
+  }
+
+  return { operationalContext };
+}
+
+function readNamedPayload(value: unknown, key: string): unknown {
+  if (!value || typeof value !== 'object' || !(key in value)) {
+    throw new Error(`Agent Studio ingest response is missing "${key}".`);
+  }
+
+  return (value as Record<string, unknown>)[key];
 }

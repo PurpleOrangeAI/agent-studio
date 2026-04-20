@@ -9,15 +9,15 @@ import {
   type Workflow,
 } from '@agent-studio/contracts';
 
-export function normalizeWorkflow(payload: unknown): Workflow {
+export function parseWorkflow(payload: unknown): Workflow {
   return workflowSchema.parse(payload);
 }
 
-export function normalizeRun(payload: unknown): Run {
+export function parseRun(payload: unknown): Run {
   return runSchema.parse(payload);
 }
 
-export function normalizeOperationalContext(payload: unknown): OperationalContext {
+export function parseOperationalContext(payload: unknown): OperationalContext {
   const operationalContext = operationalContextSchema.parse(payload);
 
   if (!operationalContext.runId) {
@@ -27,7 +27,7 @@ export function normalizeOperationalContext(payload: unknown): OperationalContex
   return operationalContext;
 }
 
-export function normalizeReplay(payload: unknown): Replay {
+export function parseReplay(payload: unknown): Replay {
   const replay = replaySchema.parse(payload);
 
   if (replay.operationalContext && !replay.operationalContext.runId) {
@@ -36,3 +36,8 @@ export function normalizeReplay(payload: unknown): Replay {
 
   return replay;
 }
+
+export const normalizeWorkflow = parseWorkflow;
+export const normalizeRun = parseRun;
+export const normalizeOperationalContext = parseOperationalContext;
+export const normalizeReplay = parseReplay;

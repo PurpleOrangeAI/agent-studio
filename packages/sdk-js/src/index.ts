@@ -9,6 +9,10 @@ export {
   type IngestWorkflowResult,
 } from './client.js';
 export {
+  parseOperationalContext,
+  parseReplay,
+  parseRun,
+  parseWorkflow,
   normalizeOperationalContext,
   normalizeReplay,
   normalizeRun,
