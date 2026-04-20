@@ -10,7 +10,7 @@ Agent Studio is a pnpm workspace.
 ## Clone and install
 
 ```bash
-git clone <repo-url>
+git clone https://github.com/purpleorangeai/agent-studio.git
 cd agent-studio
 corepack pnpm install
 ```
@@ -20,7 +20,9 @@ corepack pnpm install
 These are the root scripts the repo currently exposes:
 
 ```bash
+corepack pnpm dev
 corepack pnpm build
+corepack pnpm lint
 corepack pnpm test
 ```
 
