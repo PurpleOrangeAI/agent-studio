@@ -11,8 +11,9 @@ This checklist is the honest boundary of what the current repo can support for t
 ## Current blocker
 
 - The API is a separate Node HTTP server today, not a Vercel-hosted app in this repo.
-- A Vercel deployment of `apps/web` is only a real public demo if the API is already hosted somewhere reachable and `VITE_API_URL` points to it.
-- Do not publish the release as fully live until that API hosting path exists and is verified.
+- It is not deployable as a standalone folder checkout: the current runtime expects workspace-root build outputs from internal packages such as `packages/contracts`, `packages/demo`, and the SDK/adapter packages.
+- A Vercel deployment of `apps/web` is only a real public demo if those monorepo build artifacts already exist and the API is hosted somewhere reachable with `VITE_API_URL` pointing at it.
+- Do not publish the release as fully live until that combined build-and-hosting path exists and is verified.
 
 ## GitHub release and tag steps
 
@@ -42,6 +43,7 @@ These steps apply to `apps/web`, not the API server.
 - [ ] Create or link the Vercel project for this repo.
 - [ ] Set the root directory to `apps/web`.
 - [ ] Use the Vite build output (`dist`) as the deployment target.
+- [ ] If the API is still running from this monorepo, make sure the workspace packages have already been built from the repo root before starting the API host.
 - [ ] Set `VITE_API_URL` to the reachable public API base URL.
 - [ ] Deploy a preview and confirm the page loads the seeded demo state.
 - [ ] Verify the deployed page can reach `/api/demo/state` through the configured API URL.
