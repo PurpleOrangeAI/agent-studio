@@ -2,5 +2,30 @@
   "name": "@agent-studio/sdk-js",
   "private": true,
   "version": "0.0.0",
-  "description": "JavaScript SDK for Agent Studio"
+  "description": "JavaScript SDK for Agent Studio",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "test": "vitest run",
+    "check:examples": "tsc -p tsconfig.examples.json --noEmit"
+  },
+  "dependencies": {
+    "@agent-studio/contracts": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "^22.15.29",
+    "typescript": "^5.6.3",
+    "vitest": "^2.1.4"
+  }
 }
