@@ -16,7 +16,7 @@ It has:
 - a degraded run that fails the replay
 - an improved run that preserves the review gate while lowering cost and duration
 
-That gives the demo something real to compare, not just synthetic UI states.
+That gives the demo coherent, representative data to compare instead of synthetic UI states.
 
 ## Live
 

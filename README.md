@@ -2,7 +2,7 @@
 
 The open control room for multi-agent systems.
 
-Agent Studio is runtime-agnostic, replay-first, evidence-backed, and built around a safe release loop. It is not another agent builder and it is not a generic RAG chat tool.
+This repo currently gives you a seeded local control-room demo plus a LangGraph ingest path. Agent Studio is runtime-agnostic, replay-first, evidence-backed, and built around a safe release loop. It is not another agent builder and it is not a generic RAG chat tool.
 
 ## What ships here
 
@@ -10,7 +10,7 @@ Agent Studio is runtime-agnostic, replay-first, evidence-backed, and built aroun
 - `apps/api` for the local API and ingest surface
 - `packages/contracts` for the shared runtime contract
 - `packages/sdk-js` for JS instrumentation
-- `packages/sdk-python` for the Python path
+- `packages/sdk-python` for the planned Python path
 - `packages/demo` for the seeded demo dataset
 - `packages/adapters/langgraph` for the first shipped adapter
 - `packages/adapters/openhands` is planned, not shipped yet

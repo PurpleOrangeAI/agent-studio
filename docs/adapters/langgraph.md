@@ -44,12 +44,11 @@ Required:
 - `LANGGRAPH_API_URL`
 - `LANGGRAPH_THREAD_ID`
 - `AGENT_STUDIO_API_URL`
+- `LANGGRAPH_ASSISTANT_ID` or `LANGGRAPH_GRAPH_ID`
 
 Optional:
 
 - `LANGGRAPH_API_KEY`
-- `LANGGRAPH_ASSISTANT_ID`
-- `LANGGRAPH_GRAPH_ID`
 - `LANGGRAPH_RUN_ID`
 - `AGENT_STUDIO_API_TOKEN`
 
@@ -59,18 +58,19 @@ The example is the package's basic import path. Run it from the adapter director
 
 ```bash
 cd packages/adapters/langgraph
-LANGGRAPH_API_URL=... \
-LANGGRAPH_THREAD_ID=... \
-AGENT_STUDIO_API_URL=... \
+LANGGRAPH_API_URL=https://your-langgraph.example \
+LANGGRAPH_THREAD_ID=thread_123 \
+LANGGRAPH_ASSISTANT_ID=assistant_123 \
+AGENT_STUDIO_API_URL=http://localhost:4000 \
 corepack pnpm dlx tsx examples/basic.ts
 ```
+
+If your deployment is graph-first rather than assistant-first, replace `LANGGRAPH_ASSISTANT_ID` with `LANGGRAPH_GRAPH_ID`.
 
 If your LangGraph or Agent Studio endpoints require auth, add:
 
 ```bash
 LANGGRAPH_API_KEY=...
-LANGGRAPH_ASSISTANT_ID=...
-LANGGRAPH_GRAPH_ID=...
 LANGGRAPH_RUN_ID=...
 AGENT_STUDIO_API_TOKEN=...
 ```

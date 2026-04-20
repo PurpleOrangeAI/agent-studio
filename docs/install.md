@@ -46,7 +46,7 @@ VITE_API_URL=http://localhost:4000 corepack pnpm --filter @agent-studio/web dev
 - `apps/api` is the local API and ingest surface
 - `packages/contracts` is the shared contract
 - `packages/sdk-js` is the JS SDK
-- `packages/sdk-python` is the Python path
+- `packages/sdk-python` is planned and still a placeholder
 - `packages/demo` is the seeded demo dataset
 - `packages/adapters/langgraph` is the first shipped adapter
 - `packages/adapters/openhands` is a planned adapter guide only
