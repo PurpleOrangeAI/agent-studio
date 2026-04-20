@@ -2,5 +2,24 @@
   "name": "@agent-studio/api",
   "private": true,
   "version": "0.0.0",
-  "description": "Public API surface for Agent Studio"
+  "description": "Public API surface for Agent Studio",
+  "type": "module",
+  "main": "./dist/server.js",
+  "types": "./dist/server.d.ts",
+  "scripts": {
+    "dev": "tsx watch src/server.ts",
+    "build": "tsc -p tsconfig.json",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@agent-studio/contracts": "workspace:*",
+    "@agent-studio/demo": "workspace:*",
+    "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "@types/node": "^22.15.29",
+    "tsx": "^4.20.3",
+    "typescript": "^5.6.3",
+    "vitest": "^2.1.4"
+  }
 }

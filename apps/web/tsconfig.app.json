@@ -14,8 +14,7 @@
     "strict": true,
     "baseUrl": ".",
     "paths": {
-      "@agent-studio/contracts": ["../../packages/contracts/src/index.ts"],
-      "@agent-studio/demo": ["../../packages/demo/src/index.ts"]
+      "@agent-studio/contracts": ["../../packages/contracts/src/index.ts"]
     },
     "types": ["vitest/globals"]
   },

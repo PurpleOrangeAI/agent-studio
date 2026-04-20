@@ -1,6 +1,6 @@
-import { useState } from 'react';
+import { startTransition, useEffect, useState } from 'react';
 
-import { demoAppState, getDemoWorkflowState } from './demo';
+import { loadDemoState, type DemoState } from './demo';
 import { formatCredits, formatDuration, titleCaseStatus } from './format';
 import { RoomShell } from './RoomShell';
 import { LiveAdvancedPanel } from '../features/live/LiveAdvancedPanel';
@@ -89,17 +89,87 @@ const ROOM_COPY: Record<
 };
 
 export function App() {
+  const [demoState, setDemoState] = useState<DemoState | null>(null);
   const [runtimeId, setRuntimeId] = useState<string>('demo');
-  const [workflowId, setWorkflowId] = useState<string>(demoAppState.defaultWorkflowId);
+  const [workflowId, setWorkflowId] = useState<string>('');
   const [selectedRoom, setSelectedRoom] = useState<RoomId>('live');
   const [showOnboarding, setShowOnboarding] = useState(getInitialOnboardingState);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [advancedOpen, setAdvancedOpen] = useState<Record<RoomId, boolean>>({
     live: false,
     replay: false,
     optimize: false,
   });
 
-  const selectedWorkflowState = getDemoWorkflowState(workflowId);
+  useEffect(() => {
+    let cancelled = false;
+
+    loadDemoState()
+      .then((state) => {
+        if (cancelled) {
+          return;
+        }
+
+        startTransition(() => {
+          setDemoState(state);
+          setRuntimeId(state.runtimeOptions[0]?.id ?? 'demo');
+          setWorkflowId((current) => (current && state.workflowStates[current] ? current : state.defaultWorkflowId));
+          setLoadError(null);
+        });
+      })
+      .catch((error: unknown) => {
+        if (cancelled) {
+          return;
+        }
+
+        setLoadError(error instanceof Error ? error.message : 'Failed to load demo state.');
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  if (loadError) {
+    return (
+      <main className="app-shell">
+        <div className="app-shell__backdrop" />
+        <div className="app-shell__content">
+          <section className="surface overview-panel" role="alert">
+            <div className="section-header">
+              <div>
+                <p className="eyebrow">API unavailable</p>
+                <h1>Agent Studio</h1>
+              </div>
+            </div>
+            <p>{loadError}</p>
+          </section>
+        </div>
+      </main>
+    );
+  }
+
+  if (!demoState || !workflowId) {
+    return (
+      <main className="app-shell">
+        <div className="app-shell__backdrop" />
+        <div className="app-shell__content">
+          <section className="surface overview-panel" aria-busy="true">
+            <div className="section-header">
+              <div>
+                <p className="eyebrow">Loading demo</p>
+                <h1>Agent Studio</h1>
+              </div>
+            </div>
+            <p>Reading the seeded workflow from the API.</p>
+          </section>
+        </div>
+      </main>
+    );
+  }
+
+  const selectedWorkflowState =
+    demoState.workflowStates[workflowId] ?? demoState.workflowStates[demoState.defaultWorkflowId];
   const workflow = selectedWorkflowState.workflow;
 
   function dismissOnboarding() {
@@ -136,18 +206,18 @@ export function App() {
             <label className="select-field">
               <span>Runtime</span>
               <select aria-label="Runtime" value={runtimeId} onChange={(event) => setRuntimeId(event.target.value)}>
-                {demoAppState.runtimeOptions.map((option) => (
+                {demoState.runtimeOptions.map((option) => (
                   <option key={option.id} value={option.id}>
                     {option.label}
                   </option>
                 ))}
               </select>
-              <small>{demoAppState.runtimeOptions.find((option) => option.id === runtimeId)?.detail}</small>
+              <small>{demoState.runtimeOptions.find((option) => option.id === runtimeId)?.detail}</small>
             </label>
             <label className="select-field">
               <span>Workflow</span>
               <select aria-label="Workflow" value={workflowId} onChange={(event) => setWorkflowId(event.target.value)}>
-                {demoAppState.workflows.map((option) => (
+                {demoState.workflows.map((option) => (
                   <option key={option.workflowId} value={option.workflowId}>
                     {option.name}
                   </option>
