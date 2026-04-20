@@ -1,6 +1,6 @@
 import { useState } from 'react';
 
-import { demoAppState } from './demo';
+import { demoAppState, getDemoWorkflowState } from './demo';
 import { formatCredits, formatDuration, titleCaseStatus } from './format';
 import { RoomShell } from './RoomShell';
 import { LiveAdvancedPanel } from '../features/live/LiveAdvancedPanel';
@@ -90,7 +90,7 @@ const ROOM_COPY: Record<
 
 export function App() {
   const [runtimeId, setRuntimeId] = useState<string>('demo');
-  const [workflowId, setWorkflowId] = useState<string>(demoAppState.workflow.workflowId);
+  const [workflowId, setWorkflowId] = useState<string>(demoAppState.defaultWorkflowId);
   const [selectedRoom, setSelectedRoom] = useState<RoomId>('live');
   const [showOnboarding, setShowOnboarding] = useState(getInitialOnboardingState);
   const [advancedOpen, setAdvancedOpen] = useState<Record<RoomId, boolean>>({
@@ -99,7 +99,8 @@ export function App() {
     optimize: false,
   });
 
-  const workflow = demoAppState.workflows.find((item) => item.workflowId === workflowId) ?? demoAppState.workflow;
+  const selectedWorkflowState = getDemoWorkflowState(workflowId);
+  const workflow = selectedWorkflowState.workflow;
 
   function dismissOnboarding() {
     setShowOnboarding(false);
@@ -170,29 +171,29 @@ export function App() {
           <div className="overview-grid">
             <article className="overview-card overview-card--live">
               <p className="eyebrow">Live</p>
-              <h3>{demoAppState.liveRun.experimentLabel}</h3>
-              <p>{titleCaseStatus(demoAppState.liveRun.status)} with a clean publish path and stable guardrails.</p>
+              <h3>{selectedWorkflowState.live.run.experimentLabel}</h3>
+              <p>{titleCaseStatus(selectedWorkflowState.live.run.status)} with a clean publish path and stable guardrails.</p>
               <div className="overview-card__stats">
-                <span>{formatCredits(demoAppState.liveRun.actualCredits)}</span>
-                <span>{formatDuration(demoAppState.liveRun.durationMs)}</span>
+                <span>{formatCredits(selectedWorkflowState.live.run.actualCredits)}</span>
+                <span>{formatDuration(selectedWorkflowState.live.run.durationMs)}</span>
               </div>
             </article>
             <article className="overview-card overview-card--replay">
               <p className="eyebrow">Replay</p>
-              <h3>{demoAppState.replayRun.experimentLabel}</h3>
-              <p>{demoAppState.replayReplay.stepExecutions.find((step) => step.status === 'failed')?.error}</p>
+              <h3>{selectedWorkflowState.replay.run.experimentLabel}</h3>
+              <p>{selectedWorkflowState.replay.replay.stepExecutions.find((step) => step.status === 'failed')?.error}</p>
               <div className="overview-card__stats">
-                <span>{titleCaseStatus(demoAppState.replayRun.status)}</span>
-                <span>{formatCredits(demoAppState.replayRun.actualCredits)}</span>
+                <span>{titleCaseStatus(selectedWorkflowState.replay.run.status)}</span>
+                <span>{formatCredits(selectedWorkflowState.replay.run.actualCredits)}</span>
               </div>
             </article>
             <article className="overview-card overview-card--optimize">
               <p className="eyebrow">Optimize</p>
-              <h3>Guardrailed candidate</h3>
-              <p>{demoAppState.latestPromotion?.summary}</p>
+              <h3>{selectedWorkflowState.optimize.candidateRun.experimentLabel}</h3>
+              <p>{selectedWorkflowState.optimize.promotionSummary}</p>
               <div className="overview-card__stats">
-                <span>{demoAppState.candidatePlan?.name ?? 'Saved plan'}</span>
-                <span>{formatCredits(demoAppState.optimizeRun.actualCredits)}</span>
+                <span>{selectedWorkflowState.optimize.candidatePlan?.name ?? 'Saved plan'}</span>
+                <span>{formatCredits(selectedWorkflowState.optimize.candidateRun.actualCredits)}</span>
               </div>
             </article>
           </div>
@@ -226,7 +227,7 @@ export function App() {
             title={ROOM_COPY.live.title}
             body={ROOM_COPY.live.body}
             items={ROOM_COPY.live.items}
-            advanced={<LiveAdvancedPanel replay={demoAppState.liveReplay} />}
+            advanced={<LiveAdvancedPanel replay={selectedWorkflowState.live.replay} />}
             showAdvanced={advancedOpen.live}
             onToggleAdvanced={() => toggleAdvanced('live')}
             advancedEyebrow={ROOM_COPY.live.advancedEyebrow}
@@ -235,7 +236,7 @@ export function App() {
             openLabel={ROOM_COPY.live.openLabel}
             closeLabel={ROOM_COPY.live.closeLabel}
           >
-            <LivePanel workflow={workflow} run={demoAppState.liveRun} replay={demoAppState.liveReplay} />
+            <LivePanel workflow={workflow} run={selectedWorkflowState.live.run} replay={selectedWorkflowState.live.replay} />
           </RoomShell>
         ) : null}
 
@@ -246,7 +247,7 @@ export function App() {
             title={ROOM_COPY.replay.title}
             body={ROOM_COPY.replay.body}
             items={ROOM_COPY.replay.items}
-            advanced={<ReplayAdvancedPanel replay={demoAppState.replayReplay} />}
+            advanced={<ReplayAdvancedPanel replay={selectedWorkflowState.replay.replay} />}
             showAdvanced={advancedOpen.replay}
             onToggleAdvanced={() => toggleAdvanced('replay')}
             advancedEyebrow={ROOM_COPY.replay.advancedEyebrow}
@@ -255,7 +256,7 @@ export function App() {
             openLabel={ROOM_COPY.replay.openLabel}
             closeLabel={ROOM_COPY.replay.closeLabel}
           >
-            <ReplayPanel replay={demoAppState.replayReplay} baselineRun={demoAppState.baselineRun} />
+            <ReplayPanel replay={selectedWorkflowState.replay.replay} baselineRun={selectedWorkflowState.replay.baselineRun} />
           </RoomShell>
         ) : null}
 
@@ -268,8 +269,8 @@ export function App() {
             items={ROOM_COPY.optimize.items}
             advanced={
               <OptimizeAdvancedPanel
-                savedPlans={demoAppState.optimizeReplay.studioState?.savedPlans ?? []}
-                replay={demoAppState.optimizeReplay}
+                savedPlans={selectedWorkflowState.optimize.candidateReplay.studioState?.savedPlans ?? []}
+                promotionHistory={selectedWorkflowState.optimize.promotionHistory}
               />
             }
             showAdvanced={advancedOpen.optimize}
@@ -281,11 +282,11 @@ export function App() {
             closeLabel={ROOM_COPY.optimize.closeLabel}
           >
             <OptimizePanel
-              baselineRun={demoAppState.baselineRun}
-              candidateRun={demoAppState.optimizeRun}
-              candidateReplay={demoAppState.optimizeReplay}
-              candidatePlan={demoAppState.candidatePlan}
-              promotionSummary={demoAppState.latestPromotion?.summary ?? 'Promotion history not available.'}
+              baselineRun={selectedWorkflowState.optimize.baselineRun}
+              candidateRun={selectedWorkflowState.optimize.candidateRun}
+              candidateReplay={selectedWorkflowState.optimize.candidateReplay}
+              candidatePlan={selectedWorkflowState.optimize.candidatePlan}
+              promotionSummary={selectedWorkflowState.optimize.promotionSummary}
             />
           </RoomShell>
         ) : null}

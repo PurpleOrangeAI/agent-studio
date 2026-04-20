@@ -1,13 +1,11 @@
-import type { Replay, SavedPlan } from '@agent-studio/contracts';
+import type { PromotionEvent, SavedPlan } from '@agent-studio/contracts';
 
 interface OptimizeAdvancedPanelProps {
   savedPlans: SavedPlan[];
-  replay: Replay;
+  promotionHistory: PromotionEvent[];
 }
 
-export function OptimizeAdvancedPanel({ savedPlans, replay }: OptimizeAdvancedPanelProps) {
-  const promotions = replay.studioState?.promotionHistory ?? [];
-
+export function OptimizeAdvancedPanel({ savedPlans, promotionHistory }: OptimizeAdvancedPanelProps) {
   return (
     <div className="advanced-grid">
       <section className="mini-surface">
@@ -24,7 +22,7 @@ export function OptimizeAdvancedPanel({ savedPlans, replay }: OptimizeAdvancedPa
       <section className="mini-surface">
         <p className="eyebrow">Promotion history</p>
         <div className="stack-list">
-          {promotions.map((promotion) => (
+          {promotionHistory.map((promotion) => (
             <div key={promotion.eventId} className="stack-list__item stack-list__item--body">
               <strong>{promotion.mode}</strong>
               <p>{promotion.summary}</p>
