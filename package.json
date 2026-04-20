@@ -7,7 +7,7 @@
   "scripts": {
     "dev": "corepack pnpm -r --if-present dev",
     "build": "corepack pnpm -r --if-present build",
-    "lint": "corepack pnpm build && corepack pnpm -r --if-present lint",
+    "lint": "corepack pnpm -r --if-present lint",
     "test": "corepack pnpm -r --if-present test"
   }
 }
