@@ -1,4 +1,4 @@
-import type { PolicySnapshot, RoleDirectiveMap, StudioState, Workflow } from '@agent-studio/contracts';
+import type { PolicySnapshot, RoleDirectiveMap, SavedPlan, StudioState, Workflow } from '@agent-studio/contracts';
 
 export const seededIds = {
   workspaceId: 'workspace_demo',
@@ -34,7 +34,7 @@ export const seededWorkflow = {
   status: 'active',
   schedule: '0 8 * * 1-5',
   createdAt: '2026-04-16T15:00:00.000Z',
-  updatedAt: '2026-04-19T16:10:00.000Z',
+  updatedAt: '2026-04-19T13:07:54.000Z',
   steps: [
     {
       stepId: 'capture-intake',
@@ -95,7 +95,12 @@ export const seededWorkflow = {
       toolName: 'brief.publish',
     },
   ],
-  policy: seededPolicy,
+  policy: {
+    mode: 'custom',
+    optimizationGoal: 'balanced',
+    reviewPolicy: 'standard',
+    maxElasticLanes: 1,
+  },
 } satisfies Workflow;
 
 export const seededRoleDirectives = {
@@ -249,3 +254,106 @@ export const seededStudioState: StudioState = {
     },
   ],
 } satisfies StudioState;
+
+function createHistoricalRoleDirectives(day: '2026-04-17' | '2026-04-18'): RoleDirectiveMap {
+  return {
+    coordinator: {
+      mode: 'cheaper',
+      phases: ['capture', 'search'],
+      updatedAt: `${day}T07:45:00.000Z`,
+    },
+    researcher: {
+      mode: 'cheaper',
+      phases: ['search'],
+      updatedAt: `${day}T07:46:00.000Z`,
+    },
+    annotator: {
+      mode: 'review',
+      phases: ['capture'],
+      updatedAt: `${day}T12:55:00.000Z`,
+    },
+    analyst: {
+      mode: 'review',
+      phases: ['analyze', 'summarize'],
+      updatedAt: `${day}T08:05:00.000Z`,
+    },
+    reviewer: {
+      mode: 'review',
+      phases: ['note'],
+      updatedAt: `${day}T08:06:00.000Z`,
+    },
+    publisher: {
+      mode: 'promote',
+      phases: ['deliver'],
+      updatedAt: `${day}T08:07:00.000Z`,
+    },
+  };
+}
+
+const baselineSavedPlan = seededStudioState.savedPlans?.find((plan) => plan.id === seededIds.baselinePlanId);
+const baselineExperiment = seededStudioState.experimentHistory?.find(
+  (experiment) => experiment.id === seededIds.baselineExperimentId,
+);
+const degradedExperiment = seededStudioState.experimentHistory?.find(
+  (experiment) => experiment.id === seededIds.degradedExperimentId,
+);
+const baselinePromotion = seededStudioState.promotionHistory?.find(
+  (event) => event.eventId === 'promo_ops_learning',
+);
+
+const degradedSavedPlan: SavedPlan = {
+  id: 'plan_lean_review',
+  name: 'Lean review',
+  createdAt: '2026-04-18T12:45:00.000Z',
+  scenarioId: seededIds.scenarioId,
+  previewPresetId: seededIds.leanPresetId,
+  executionPolicy: {
+    mode: 'custom',
+    optimizationGoal: 'cost_saver',
+    reviewPolicy: 'lean',
+    maxElasticLanes: 1,
+  },
+  intentLabel: 'Lower-cost weekly brief',
+  sourceExperimentId: seededIds.degradedExperimentId,
+  sourceExperimentLabel: 'Lean review failure',
+  notes: 'Removed the citation gate and was not safe to keep.',
+};
+
+export const seededWorkflowByRunId = {
+  [seededIds.baselineRunId]: {
+    ...seededWorkflow,
+    updatedAt: '2026-04-17T13:09:20.000Z',
+    policy: seededPolicy,
+  },
+  [seededIds.degradedRunId]: {
+    ...seededWorkflow,
+    updatedAt: '2026-04-18T13:10:40.000Z',
+    policy: {
+      mode: 'custom',
+      optimizationGoal: 'cost_saver',
+      reviewPolicy: 'lean',
+      maxElasticLanes: 1,
+    },
+  },
+  [seededIds.improvedRunId]: seededWorkflow,
+} satisfies Record<string, Workflow>;
+
+export const seededStudioStateByRunId = {
+  [seededIds.baselineRunId]: {
+    ...seededStudioState,
+    previewPresetId: seededIds.recommendedPresetId,
+    roleDirectives: createHistoricalRoleDirectives('2026-04-17'),
+    experimentHistory: baselineExperiment ? [baselineExperiment] : [],
+    savedPlans: baselineSavedPlan ? [baselineSavedPlan] : [],
+    promotionHistory: baselinePromotion ? [baselinePromotion] : [],
+  },
+  [seededIds.degradedRunId]: {
+    ...seededStudioState,
+    previewPresetId: seededIds.leanPresetId,
+    roleDirectives: createHistoricalRoleDirectives('2026-04-18'),
+    experimentHistory: baselineExperiment && degradedExperiment ? [baselineExperiment, degradedExperiment] : [],
+    savedPlans: baselineSavedPlan ? [baselineSavedPlan, degradedSavedPlan] : [degradedSavedPlan],
+    promotionHistory: baselinePromotion ? [baselinePromotion] : [],
+  },
+  [seededIds.improvedRunId]: seededStudioState,
+} satisfies Record<string, StudioState>;

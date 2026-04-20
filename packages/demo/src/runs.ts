@@ -1,70 +1,82 @@
 import type { Replay, Run } from '@agent-studio/contracts';
 
 import { seededOperationalContexts } from './recommendations.js';
-import { seededIds, seededStudioState, seededWorkflow } from './workflows.js';
+import {
+  seededIds,
+  seededStudioStateByRunId,
+  seededWorkflowByRunId,
+} from './workflows.js';
 
-export const seededRuns = [
-  {
-    runId: seededIds.baselineRunId,
-    workflowId: seededIds.workflowId,
-    status: 'succeeded',
-    startedAt: '2026-04-17T13:00:00.000Z',
-    finishedAt: '2026-04-17T13:09:20.000Z',
-    estimatedCredits: 30,
-    actualCredits: 32,
-    durationMs: 560000,
-    experimentId: seededIds.baselineExperimentId,
-    experimentLabel: 'Baseline control',
-    branchName: 'control',
-    scenarioId: seededIds.scenarioId,
-    scenarioLabel: 'Weekly operations brief',
-    previewPresetId: seededIds.recommendedPresetId,
-    previewPresetLabel: 'Recommended',
-    matchedSavedExperiment: true,
-  },
-  {
-    runId: seededIds.degradedRunId,
-    workflowId: seededIds.workflowId,
-    status: 'failed',
-    startedAt: '2026-04-18T13:00:00.000Z',
-    finishedAt: '2026-04-18T13:10:40.000Z',
-    estimatedCredits: 33,
-    actualCredits: 35,
-    durationMs: 640000,
-    experimentId: seededIds.degradedExperimentId,
-    experimentLabel: 'Lean review failure',
-    branchName: 'lean-review',
-    parentExperimentId: seededIds.baselineExperimentId,
-    scenarioId: seededIds.scenarioId,
-    scenarioLabel: 'Weekly operations brief',
-    previewPresetId: seededIds.leanPresetId,
-    previewPresetLabel: 'Lean ops',
-    matchedSavedExperiment: false,
-  },
-  {
-    runId: seededIds.improvedRunId,
-    workflowId: seededIds.workflowId,
-    status: 'succeeded',
-    startedAt: '2026-04-19T13:00:00.000Z',
-    finishedAt: '2026-04-19T13:07:54.000Z',
-    estimatedCredits: 21,
-    actualCredits: 20,
-    durationMs: 474000,
-    experimentId: seededIds.improvedExperimentId,
-    experimentLabel: 'Guardrailed candidate',
-    branchName: 'optimize-brief',
-    parentExperimentId: seededIds.baselineExperimentId,
-    matchedSavedExperiment: true,
-    scenarioId: seededIds.scenarioId,
-    scenarioLabel: 'Weekly operations brief',
-    previewPresetId: seededIds.optimizedPresetId,
-    previewPresetLabel: 'Optimized brief',
-  },
-] satisfies Run[];
+export const seededBaselineRun: Run = {
+  runId: seededIds.baselineRunId,
+  workflowId: seededIds.workflowId,
+  status: 'succeeded',
+  startedAt: '2026-04-17T13:00:00.000Z',
+  finishedAt: '2026-04-17T13:09:20.000Z',
+  estimatedCredits: 30,
+  actualCredits: 32,
+  durationMs: 560000,
+  experimentId: seededIds.baselineExperimentId,
+  experimentLabel: 'Baseline control',
+  branchName: 'control',
+  scenarioId: seededIds.scenarioId,
+  scenarioLabel: 'Weekly operations brief',
+  previewPresetId: seededIds.recommendedPresetId,
+  previewPresetLabel: 'Recommended',
+  matchedSavedExperiment: true,
+};
+
+export const seededDegradedRun: Run = {
+  runId: seededIds.degradedRunId,
+  workflowId: seededIds.workflowId,
+  status: 'failed',
+  startedAt: '2026-04-18T13:00:00.000Z',
+  finishedAt: '2026-04-18T13:10:40.000Z',
+  estimatedCredits: 33,
+  actualCredits: 35,
+  durationMs: 640000,
+  experimentId: seededIds.degradedExperimentId,
+  experimentLabel: 'Lean review failure',
+  branchName: 'lean-review',
+  parentExperimentId: seededIds.baselineExperimentId,
+  scenarioId: seededIds.scenarioId,
+  scenarioLabel: 'Weekly operations brief',
+  previewPresetId: seededIds.leanPresetId,
+  previewPresetLabel: 'Lean ops',
+  matchedSavedExperiment: false,
+};
+
+export const seededImprovedRun: Run = {
+  runId: seededIds.improvedRunId,
+  workflowId: seededIds.workflowId,
+  status: 'succeeded',
+  startedAt: '2026-04-19T13:00:00.000Z',
+  finishedAt: '2026-04-19T13:07:54.000Z',
+  estimatedCredits: 21,
+  actualCredits: 20,
+  durationMs: 474000,
+  experimentId: seededIds.improvedExperimentId,
+  experimentLabel: 'Guardrailed candidate',
+  branchName: 'optimize-brief',
+  parentExperimentId: seededIds.baselineExperimentId,
+  matchedSavedExperiment: true,
+  scenarioId: seededIds.scenarioId,
+  scenarioLabel: 'Weekly operations brief',
+  previewPresetId: seededIds.optimizedPresetId,
+  previewPresetLabel: 'Optimized brief',
+};
+
+export const seededRunById = {
+  [seededIds.baselineRunId]: seededBaselineRun,
+  [seededIds.degradedRunId]: seededDegradedRun,
+  [seededIds.improvedRunId]: seededImprovedRun,
+} satisfies Record<string, Run>;
+
+export const seededRuns = Object.values(seededRunById) satisfies Run[];
 
 const baselineReplay: Replay = {
-  workflow: seededWorkflow,
-  run: seededRuns[0],
+  workflow: seededWorkflowByRunId[seededIds.baselineRunId],
+  run: seededBaselineRun,
   stepExecutions: [
     {
       stepId: 'capture-intake',
@@ -186,14 +198,14 @@ const baselineReplay: Replay = {
       summary: 'Delivered the final brief and stored the replay artifact.',
     },
   ],
-  policy: seededWorkflow.policy,
-  studioState: seededStudioState,
+  policy: seededWorkflowByRunId[seededIds.baselineRunId].policy,
+  studioState: seededStudioStateByRunId[seededIds.baselineRunId],
   operationalContext: seededOperationalContexts[seededIds.baselineRunId],
 };
 
 const degradedReplay: Replay = {
-  workflow: seededWorkflow,
-  run: seededRuns[1],
+  workflow: seededWorkflowByRunId[seededIds.degradedRunId],
+  run: seededDegradedRun,
   stepExecutions: [
     {
       stepId: 'capture-intake',
@@ -316,19 +328,14 @@ const degradedReplay: Replay = {
       summary: 'Skipped because review failed.',
     },
   ],
-  policy: {
-    mode: 'custom',
-    optimizationGoal: 'cost_saver',
-    reviewPolicy: 'lean',
-    maxElasticLanes: 1,
-  },
-  studioState: seededStudioState,
+  policy: seededWorkflowByRunId[seededIds.degradedRunId].policy,
+  studioState: seededStudioStateByRunId[seededIds.degradedRunId],
   operationalContext: seededOperationalContexts[seededIds.degradedRunId],
 };
 
 const improvedReplay: Replay = {
-  workflow: seededWorkflow,
-  run: seededRuns[2],
+  workflow: seededWorkflowByRunId[seededIds.improvedRunId],
+  run: seededImprovedRun,
   stepExecutions: [
     {
       stepId: 'capture-intake',
@@ -450,20 +457,15 @@ const improvedReplay: Replay = {
       summary: 'Published the brief and stored the replay artifact for future comparisons.',
     },
   ],
-  policy: {
-    mode: 'custom',
-    optimizationGoal: 'balanced',
-    reviewPolicy: 'standard',
-    maxElasticLanes: 1,
-  },
-  studioState: seededStudioState,
+  policy: seededWorkflowByRunId[seededIds.improvedRunId].policy,
+  studioState: seededStudioStateByRunId[seededIds.improvedRunId],
   operationalContext: seededOperationalContexts[seededIds.improvedRunId],
 };
-
-export const seededReplays = [baselineReplay, degradedReplay, improvedReplay] satisfies Replay[];
 
 export const seededReplayByRunId = {
   [seededIds.baselineRunId]: baselineReplay,
   [seededIds.degradedRunId]: degradedReplay,
   [seededIds.improvedRunId]: improvedReplay,
 } satisfies Record<string, Replay>;
+
+export const seededReplays = Object.values(seededReplayByRunId) satisfies Replay[];
