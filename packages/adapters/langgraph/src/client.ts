@@ -109,10 +109,46 @@ async function tryRead<T>(
 ): Promise<T | undefined> {
   try {
     return await reader();
-  } catch {
+  } catch (error) {
+    if (!isOptionalReadError(error)) {
+      throw error;
+    }
+
     warnings.push(warning);
     return undefined;
   }
+}
+
+function isOptionalReadError(error: unknown): boolean {
+  const status = readErrorStatus(error);
+  if (status === 404) {
+    return true;
+  }
+
+  const message = error instanceof Error ? error.message : '';
+  return /not found/i.test(message);
+}
+
+function readErrorStatus(error: unknown): number | undefined {
+  if (!error || typeof error !== 'object') {
+    return undefined;
+  }
+
+  if ('status' in error && typeof error.status === 'number') {
+    return error.status;
+  }
+
+  if (
+    'response' in error &&
+    error.response &&
+    typeof error.response === 'object' &&
+    'status' in error.response &&
+    typeof error.response.status === 'number'
+  ) {
+    return error.response.status;
+  }
+
+  return undefined;
 }
 
 function sortRunsNewestFirst(runs: LangGraphRun[]): LangGraphRun[] {

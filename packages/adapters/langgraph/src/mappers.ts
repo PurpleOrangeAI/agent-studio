@@ -4,7 +4,7 @@ import {
   ensureIngestOperationalContextPayload,
   ensureIngestReplayPayload,
 } from '@agent-studio/sdk-js';
-import type { AssistantGraph, Run as LangGraphRun, ThreadState } from '@langchain/langgraph-sdk';
+import type { AssistantGraph, ThreadState } from '@langchain/langgraph-sdk';
 
 import type {
   LangGraphDeploymentSnapshot,
@@ -57,43 +57,13 @@ export function mapOperationalContextFromLangGraph(
   runId: string,
   now: string,
 ) {
-  const peerRuns = snapshot.runs.filter((candidate) => candidate.run_id !== snapshot.run.run_id);
-  const latestHealthyRun = peerRuns.find((candidate) => mapRunStatus(candidate.status) === 'succeeded');
-  const relatedRunIds = [snapshot.run.run_id, ...peerRuns.slice(0, 2).map((candidate) => candidate.run_id)];
   const currentValueKeys = listObjectKeys(snapshot.currentState.values);
-  const currentRunDuration = calculateDurationMs(snapshot.run.created_at, snapshot.run.updated_at) ?? 0;
-  const healthyRunDuration = latestHealthyRun
-    ? calculateDurationMs(latestHealthyRun.created_at, latestHealthyRun.updated_at) ?? 0
-    : 0;
 
   return ensureIngestOperationalContextPayload(parseOperationalContext({
     workflowId: workflow.workflowId,
     runId,
     generatedAt: now,
-    similarRuns: peerRuns.slice(0, 3).map((candidate, index) => ({
-      runId: candidate.run_id,
-      label: readString(candidate.metadata, 'label') ?? `Thread run ${candidate.run_id}`,
-      status: mapRunStatus(candidate.status),
-      startedAt: candidate.created_at,
-      finishedAt: isTerminalRun(candidate.status) ? candidate.updated_at : undefined,
-      durationMs: calculateDurationMs(candidate.created_at, isTerminalRun(candidate.status) ? candidate.updated_at : undefined),
-      similarityScore: Math.max(0.55, 0.92 - index * 0.12),
-      matchedSignals: buildMatchedSignals(snapshot.run, candidate),
-    })),
-    lastHealthyComparison: latestHealthyRun
-      ? {
-          runId: latestHealthyRun.run_id,
-          label: readString(latestHealthyRun.metadata, 'label') ?? `Healthy thread run ${latestHealthyRun.run_id}`,
-          startedAt: latestHealthyRun.created_at,
-          finishedAt: isTerminalRun(latestHealthyRun.status) ? latestHealthyRun.updated_at : undefined,
-          durationDelta: currentRunDuration - healthyRunDuration,
-          changedSignals: [
-            'Agent Studio replay is synthesized from LangGraph checkpoints',
-            'Workflow shape comes from the deployed assistant graph when available',
-          ],
-          summary: 'Compared against the most recent healthy run available on the same LangGraph thread.',
-        }
-      : undefined,
+    similarRuns: [],
     recommendationEvidence: [
       {
         evidenceId: `${runId}:deployment`,
@@ -120,7 +90,7 @@ export function mapOperationalContextFromLangGraph(
             : 'Latest thread state did not expose named values, so replay context stayed minimal.',
         sourceLabel: 'LangGraph thread state',
         phase: 'deliver',
-        relatedRunIds,
+        relatedRunIds: [runId],
       },
     ],
   }));
@@ -241,39 +211,69 @@ function buildStepExecutions(
 ): StepExecution[] {
   const workflowStepById = new Map(workflow.steps.map((step) => [step.stepId, step] as const));
   const history = snapshot.history.length > 0 ? snapshot.history : [snapshot.currentState];
+  const aggregated = new Map<string, AggregatedStepExecution>();
 
-  return history.map((state, index) => {
+  history.forEach((state, index) => {
     const inferredNodeId = inferNodeIdFromState(state) ?? workflow.steps[index]?.stepId ?? `checkpoint_${index + 1}`;
     const fallbackKind = inferPhaseKind(inferredNodeId);
     const mappedStep = workflowStepById.get(inferredNodeId) ?? workflow.steps[index];
-    const stepId = mappedStep?.stepId ?? inferredNodeId;
+    const workflowStepId = mappedStep?.stepId ?? inferredNodeId;
     const kind = mappedStep?.kind ?? fallbackKind;
-    const title = mappedStep?.title ?? humanize(stepId);
+    const title = mappedStep?.title ?? humanize(workflowStepId);
     const assignedRole = mappedStep?.assignedRole ?? inferAssignedRole(kind);
     const startedAt = index === 0 ? snapshot.run.created_at : coerceIso(history[index - 1]?.created_at) ?? snapshot.run.created_at;
     const finishedAt = coerceIso(state.created_at) ?? (index === history.length - 1 ? snapshot.run.updated_at : undefined);
-    const taskError = firstTaskError(state);
+    const taskError = firstTaskError(state) ?? undefined;
+    const status =
+      taskError != null
+        ? 'failed'
+        : index === history.length - 1
+          ? runStatus
+          : 'succeeded';
+    const existing = aggregated.get(workflowStepId);
 
-    return {
-      stepId,
-      kind,
-      title,
-      assignedRole,
-      status:
-        taskError != null
-          ? 'failed'
-          : index === history.length - 1
-            ? runStatus
-            : 'succeeded',
-      startedAt,
-      finishedAt,
-      durationMs: calculateDurationMs(startedAt, finishedAt),
-      modelSource: 'langgraph',
-      toolCalls: countWrites(state),
-      summary: summarizeState(state, title),
-      error: taskError ?? undefined,
-    };
+    if (!existing) {
+      aggregated.set(workflowStepId, {
+        stepId: workflowStepId,
+        kind,
+        title,
+        assignedRole,
+        startedAt,
+        finishedAt,
+        toolCalls: countWrites(state),
+        occurrenceCount: 1,
+        latestSummary: summarizeState(state, title),
+        lastStatus: status,
+        latestError: taskError,
+      });
+      return;
+    }
+
+    existing.finishedAt = finishedAt ?? existing.finishedAt;
+    existing.toolCalls += countWrites(state);
+    existing.occurrenceCount += 1;
+    existing.latestSummary = summarizeState(state, title);
+    existing.lastStatus = status;
+    existing.latestError = taskError;
   });
+
+  return workflow.steps
+    .map((step) => aggregated.get(step.stepId))
+    .filter((step): step is AggregatedStepExecution => Boolean(step))
+    .map((step) => ({
+      stepId: step.stepId,
+      kind: step.kind,
+      title: step.title,
+      assignedRole: step.assignedRole,
+      status: step.lastStatus,
+      startedAt: step.startedAt,
+      finishedAt: step.finishedAt,
+      durationMs: calculateDurationMs(step.startedAt, step.finishedAt),
+      modelSource: 'langgraph',
+      toolCalls: step.toolCalls,
+      summary: formatAggregatedSummary(step),
+      error: step.lastStatus === 'failed' ? step.latestError : undefined,
+    }));
 }
 
 function summarizeState(state: ThreadState, title: string): string {
@@ -288,15 +288,6 @@ function summarizeState(state: ThreadState, title: string): string {
   }
 
   return `${title} was reconstructed from LangGraph checkpoint history.`;
-}
-
-function buildMatchedSignals(currentRun: LangGraphRun, candidate: LangGraphRun): string[] {
-  const signals = ['Same thread', 'Same deployed assistant'];
-  if (currentRun.status !== candidate.status) {
-    signals.push('Different outcome');
-  }
-
-  return signals;
 }
 
 function mapRunStatus(status: string): RunStatus {
@@ -468,5 +459,32 @@ function listObjectKeys(value: unknown): string[] {
 
   return Object.keys(value as Record<string, unknown>);
 }
+
+function formatAggregatedSummary(step: AggregatedStepExecution): string {
+  if (step.occurrenceCount <= 1) {
+    return step.latestSummary;
+  }
+
+  const retryNote =
+    step.lastStatus === 'succeeded'
+      ? `Observed ${step.occurrenceCount} occurrences before the step settled successfully.`
+      : `Observed ${step.occurrenceCount} occurrences and the latest one still failed.`;
+
+  return `${retryNote} ${step.latestSummary}`;
+}
+
+type AggregatedStepExecution = {
+  stepId: string;
+  kind: PhaseKind;
+  title: string;
+  assignedRole: string;
+  startedAt?: string;
+  finishedAt?: string;
+  toolCalls: number;
+  occurrenceCount: number;
+  latestSummary: string;
+  lastStatus: RunStatus;
+  latestError?: string;
+};
 
 export { mapRunStatus };
