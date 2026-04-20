@@ -212,7 +212,7 @@ export const seededStudioState: StudioState = {
   promotionHistory: [
     {
       eventId: 'promo_ops_learning',
-      appliedAt: '2026-04-17T08:20:00.000Z',
+      appliedAt: '2026-04-17T13:10:00.000Z',
       mode: 'learning',
       summary: 'Captured the baseline as the stable control sample.',
       sourceExperimentId: seededIds.baselineExperimentId,
@@ -239,7 +239,7 @@ export const seededStudioState: StudioState = {
     },
     {
       eventId: 'promo_ops_graduation',
-      appliedAt: '2026-04-19T08:30:00.000Z',
+      appliedAt: '2026-04-19T13:08:30.000Z',
       mode: 'graduation',
       summary: 'Promoted the tighter fan-out plan after it matched the baseline output with lower spend.',
       sourceExperimentId: seededIds.improvedExperimentId,
