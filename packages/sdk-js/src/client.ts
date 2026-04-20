@@ -8,6 +8,12 @@ import {
   type Run,
   type Workflow,
 } from '@agent-studio/contracts';
+import {
+  ensureIngestOperationalContextPayload,
+  ensureIngestReplayPayload,
+  type IngestOperationalContextPayload,
+  type IngestReplayPayload,
+} from './events.js';
 
 export interface AgentStudioClientOptions {
   baseUrl: string;
@@ -24,11 +30,11 @@ export interface IngestRunResult {
 }
 
 export interface IngestReplayResult {
-  replay: Replay;
+  replay: IngestReplayPayload;
 }
 
 export interface IngestOperationalContextResult {
-  operationalContext: OperationalContext;
+  operationalContext: IngestOperationalContextPayload;
 }
 
 export class AgentStudioClient {
@@ -50,14 +56,16 @@ export class AgentStudioClient {
     return this.post('/api/ingest/runs', run, parseIngestRunResult);
   }
 
-  ingestReplay(replay: Replay): Promise<IngestReplayResult> {
-    return this.post('/api/ingest/replays', replay, parseIngestReplayResult);
+  ingestReplay(replay: IngestReplayPayload): Promise<IngestReplayResult> {
+    return this.post('/api/ingest/replays', ensureIngestReplayPayload(replay), parseIngestReplayResult);
   }
 
-  ingestOperationalContext(operationalContext: OperationalContext): Promise<IngestOperationalContextResult> {
+  ingestOperationalContext(
+    operationalContext: IngestOperationalContextPayload,
+  ): Promise<IngestOperationalContextResult> {
     return this.post(
       '/api/ingest/operational-contexts',
-      operationalContext,
+      ensureIngestOperationalContextPayload(operationalContext),
       parseIngestOperationalContextResult,
     );
   }
@@ -144,18 +152,16 @@ function parseIngestRunResult(value: unknown): IngestRunResult {
 
 function parseIngestReplayResult(value: unknown): IngestReplayResult {
   return {
-    replay: replaySchema.parse(readNamedPayload(value, 'replay')),
+    replay: ensureIngestReplayPayload(replaySchema.parse(readNamedPayload(value, 'replay'))),
   };
 }
 
 function parseIngestOperationalContextResult(value: unknown): IngestOperationalContextResult {
-  const operationalContext = operationalContextSchema.parse(readNamedPayload(value, 'operationalContext'));
-
-  if (!operationalContext.runId) {
-    throw new Error('Agent Studio ingest response is missing operationalContext.runId.');
-  }
-
-  return { operationalContext };
+  return {
+    operationalContext: ensureIngestOperationalContextPayload(
+      operationalContextSchema.parse(readNamedPayload(value, 'operationalContext')),
+    ),
+  };
 }
 
 function readNamedPayload(value: unknown, key: string): unknown {

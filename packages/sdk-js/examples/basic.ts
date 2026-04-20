@@ -2,6 +2,8 @@ import { pathToFileURL } from 'node:url';
 
 import {
   AgentStudioClient,
+  ensureIngestOperationalContextPayload,
+  ensureIngestReplayPayload,
   parseOperationalContext,
   parseReplay,
   parseRun,
@@ -71,7 +73,7 @@ const run = parseRun({
   previewPresetLabel: 'Recommended',
 });
 
-const operationalContext = parseOperationalContext({
+const operationalContext = ensureIngestOperationalContextPayload(parseOperationalContext({
   workflowId: workflow.workflowId,
   runId: run.runId,
   generatedAt: '2026-04-20T13:03:45.000Z',
@@ -98,9 +100,9 @@ const operationalContext = parseOperationalContext({
       relatedRunIds: [run.runId],
     },
   ],
-});
+}));
 
-const replay = parseReplay({
+const replay = ensureIngestReplayPayload(parseReplay({
   workflow,
   run,
   stepExecutions: [
@@ -152,7 +154,7 @@ const replay = parseReplay({
   ],
   policy: workflow.policy,
   operationalContext,
-});
+}));
 
 export const basicExamplePayloads = {
   workflow,

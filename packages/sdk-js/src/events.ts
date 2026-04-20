@@ -9,6 +9,14 @@ import {
   type Workflow,
 } from '@agent-studio/contracts';
 
+export type IngestOperationalContextPayload = OperationalContext & {
+  runId: string;
+};
+
+export type IngestReplayPayload = Omit<Replay, 'operationalContext'> & {
+  operationalContext?: IngestOperationalContextPayload;
+};
+
 export function parseWorkflow(payload: unknown): Workflow {
   return workflowSchema.parse(payload);
 }
@@ -35,6 +43,24 @@ export function parseReplay(payload: unknown): Replay {
   }
 
   return replay;
+}
+
+export function ensureIngestOperationalContextPayload(
+  operationalContext: OperationalContext,
+): IngestOperationalContextPayload {
+  if (!operationalContext.runId) {
+    throw new Error('runId is required for this API surface.');
+  }
+
+  return operationalContext as IngestOperationalContextPayload;
+}
+
+export function ensureIngestReplayPayload(replay: Replay): IngestReplayPayload {
+  if (replay.operationalContext && !replay.operationalContext.runId) {
+    throw new Error('operationalContext.runId is required for this API surface.');
+  }
+
+  return replay as IngestReplayPayload;
 }
 
 export const normalizeWorkflow = parseWorkflow;

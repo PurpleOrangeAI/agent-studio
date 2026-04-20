@@ -117,6 +117,33 @@ describe('AgentStudioClient', () => {
     await expect(client.ingestWorkflow(basicExamplePayloads.workflow)).rejects.toThrow();
   });
 
+  it('rejects replay and operational-context payloads that violate ingest-specific constraints before posting', async () => {
+    const fetchMock = vi.fn<typeof fetch>();
+    const client = new AgentStudioClient({
+      baseUrl: 'https://agent-studio.test',
+      fetch: fetchMock,
+    });
+
+    expect(() =>
+      client.ingestOperationalContext({
+        ...basicExamplePayloads.operationalContext,
+        runId: undefined,
+      } as never),
+    ).toThrow(/runId is required/i);
+
+    expect(() =>
+      client.ingestReplay({
+        ...basicExamplePayloads.replay,
+        operationalContext: {
+          ...basicExamplePayloads.operationalContext,
+          runId: undefined,
+        },
+      } as never),
+    ).toThrow(/runId is required/i);
+
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
   it('keeps the basic example payloads valid against the shared contract', () => {
     expect(() => workflowSchema.parse(basicExamplePayloads.workflow)).not.toThrow();
     expect(() => runSchema.parse(basicExamplePayloads.run)).not.toThrow();
