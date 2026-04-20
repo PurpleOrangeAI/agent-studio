@@ -124,71 +124,72 @@ export class ApiStore {
     return studioState ? cloneStudioState(studioState) : undefined;
   }
 
-  buildDemoState(): DemoStateResponse {
-    const workflows = this.listWorkflows();
-    const defaultWorkflowId = workflows[0]?.workflowId ?? createSeededDemoState().defaultWorkflowId;
+  private buildDemoWorkflowState(workflow: Workflow): DemoStateResponse['workflowStates'][string] | null {
+    const runsByNewest = this.listRunsByWorkflow(workflow.workflowId);
+    const liveRun = runsByNewest.find((run) => run.status === 'succeeded') ?? runsByNewest[0];
+    const replayRun = runsByNewest.find((run) => run.status === 'failed') ?? runsByNewest[1] ?? runsByNewest[0];
+    const baselineRun = runsByNewest.find((run) => run.runId !== liveRun?.runId && run.status === 'succeeded') ?? liveRun;
+    const candidateRun = liveRun ?? runsByNewest[0];
+    const liveReplay = liveRun ? this.getReplay(liveRun.runId) : undefined;
+    const replayReplay = replayRun ? this.getReplay(replayRun.runId) : undefined;
+    const candidateReplay = candidateRun ? this.getReplay(candidateRun.runId) : undefined;
 
-    const workflowStates = Object.fromEntries(
-      workflows.map((workflow) => {
-        const runsByNewest = this.listRunsByWorkflow(workflow.workflowId);
-        const runById = Object.fromEntries(runsByNewest.map((run) => [run.runId, run]));
-        const liveRun = runsByNewest.find((run) => run.status === 'succeeded') ?? runsByNewest[0];
-        const replayRun = runsByNewest.find((run) => run.status === 'failed') ?? runsByNewest[1] ?? runsByNewest[0];
-        const baselineRun = runsByNewest.find((run) => run.runId !== liveRun?.runId && run.status === 'succeeded') ?? liveRun;
-        const candidateRun = liveRun ?? runsByNewest[0];
-        const liveReplay = liveRun ? this.getReplay(liveRun.runId) : undefined;
-        const replayReplay = replayRun ? this.getReplay(replayRun.runId) : undefined;
-        const candidateReplay = candidateRun ? this.getReplay(candidateRun.runId) : undefined;
-        const studioState = this.getStudioState(workflow.workflowId);
-        const candidatePlan =
-          studioState?.savedPlans?.find((plan) => plan.sourceExperimentId === candidateRun?.experimentId) ??
-          studioState?.savedPlans?.[0] ??
-          null;
-        const promotionHistory =
-          studioState?.promotionHistory?.filter((event) => {
-            if (candidatePlan?.id && event.planId === candidatePlan.id) {
-              return true;
-            }
+    if (!liveRun || !replayRun || !baselineRun || !candidateRun || !liveReplay || !replayReplay || !candidateReplay) {
+      return null;
+    }
 
-            if (candidateRun?.experimentId && event.sourceExperimentId === candidateRun.experimentId) {
-              return true;
-            }
-
-            return false;
-          }) ?? [];
-        const promotionSummary =
-          promotionHistory[promotionHistory.length - 1]?.summary ?? 'Promotion history not available for this candidate.';
-
-        if (!liveRun || !replayRun || !baselineRun || !candidateRun || !liveReplay || !replayReplay || !candidateReplay) {
-          throw new Error(`Workflow ${workflow.workflowId} is missing the seeded demo shape required by the web app.`);
+    const studioState = this.getStudioState(workflow.workflowId);
+    const candidatePlan =
+      studioState?.savedPlans?.find((plan) => plan.sourceExperimentId === candidateRun.experimentId) ??
+      studioState?.savedPlans?.[0] ??
+      null;
+    const promotionHistory =
+      studioState?.promotionHistory?.filter((event) => {
+        if (candidatePlan?.id && event.planId === candidatePlan.id) {
+          return true;
         }
 
-        return [
-          workflow.workflowId,
-          {
-            workflow,
-            runsByNewest,
-            live: {
-              run: liveRun,
-              replay: liveReplay,
-            },
-            replay: {
-              run: replayRun,
-              replay: replayReplay,
-              baselineRun,
-            },
-            optimize: {
-              baselineRun,
-              candidateRun,
-              candidateReplay,
-              candidatePlan,
-              promotionHistory,
-              promotionSummary,
-            },
-          },
-        ];
-      }),
-    );
+        if (candidateRun.experimentId && event.sourceExperimentId === candidateRun.experimentId) {
+          return true;
+        }
+
+        return false;
+      }) ?? [];
+    const promotionSummary =
+      promotionHistory[promotionHistory.length - 1]?.summary ?? 'Promotion history not available for this candidate.';
+
+    return {
+      workflow,
+      runsByNewest,
+      live: {
+        run: liveRun,
+        replay: liveReplay,
+      },
+      replay: {
+        run: replayRun,
+        replay: replayReplay,
+        baselineRun,
+      },
+      optimize: {
+        baselineRun,
+        candidateRun,
+        candidateReplay,
+        candidatePlan,
+        promotionHistory,
+        promotionSummary,
+      },
+    };
+  }
+
+  buildDemoState(): DemoStateResponse {
+    const workflowEntries = this.listWorkflows().flatMap((workflow) => {
+      const workflowState = this.buildDemoWorkflowState(workflow);
+
+      return workflowState ? ([[workflow.workflowId, workflowState]] as const) : [];
+    });
+    const workflowStates = Object.fromEntries(workflowEntries);
+    const workflows = workflowEntries.map(([, workflowState]) => workflowState.workflow);
+    const defaultWorkflowId = workflows[0]?.workflowId ?? createSeededDemoState().defaultWorkflowId;
 
     return {
       runtimeOptions: [

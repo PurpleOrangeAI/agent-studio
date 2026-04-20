@@ -1,4 +1,4 @@
-import { seededWorkflow } from '@agent-studio/demo';
+import { seededOperationalContexts, seededReplays, seededWorkflow } from '@agent-studio/demo';
 
 import { createApiApp } from './server';
 
@@ -104,6 +104,108 @@ describe('Agent Studio API', () => {
           expect.objectContaining({
             path: expect.any(String),
             message: expect.any(String),
+          }),
+        ]),
+      }),
+    );
+  });
+
+  it('keeps partial workflows available through read routes without breaking demo state', async () => {
+    const app = createApiApp();
+    const partialWorkflow = {
+      ...structuredClone(seededWorkflow),
+      workflowId: 'workflow_partial_ingest',
+      name: 'Partially ingested workflow',
+      description: 'Valid workflow metadata with no runs or replays yet.',
+      steps: [],
+    };
+
+    const ingestResponse = await app.handle(
+      new Request('http://agent-studio.test/api/ingest/workflows', {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+        },
+        body: JSON.stringify(partialWorkflow),
+      }),
+    );
+
+    expect(ingestResponse.status).toBe(201);
+
+    const workflowsResponse = await app.handle(new Request('http://agent-studio.test/api/workflows'));
+    expect(workflowsResponse.status).toBe(200);
+    await expect(workflowsResponse.json()).resolves.toEqual(
+      expect.objectContaining({
+        workflows: expect.arrayContaining([
+          expect.objectContaining({
+            workflowId: 'workflow_partial_ingest',
+          }),
+        ]),
+      }),
+    );
+
+    const demoResponse = await app.handle(new Request('http://agent-studio.test/api/demo/state'));
+    expect(demoResponse.status).toBe(200);
+    await expect(demoResponse.json()).resolves.toEqual(
+      expect.objectContaining({
+        workflowStates: expect.not.objectContaining({
+          workflow_partial_ingest: expect.anything(),
+        }),
+      }),
+    );
+  });
+
+  it('rejects operational-context ingest without runId on both direct and replay endpoints', async () => {
+    const app = createApiApp();
+    const operationalContextWithoutRunId = {
+      ...structuredClone(seededOperationalContexts[Object.keys(seededOperationalContexts)[0] as keyof typeof seededOperationalContexts]),
+      runId: undefined,
+    };
+
+    const directResponse = await app.handle(
+      new Request('http://agent-studio.test/api/ingest/operational-contexts', {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+        },
+        body: JSON.stringify(operationalContextWithoutRunId),
+      }),
+    );
+
+    expect(directResponse.status).toBe(400);
+    await expect(directResponse.json()).resolves.toEqual(
+      expect.objectContaining({
+        error: 'Validation failed',
+        details: expect.arrayContaining([
+          expect.objectContaining({
+            path: 'runId',
+          }),
+        ]),
+      }),
+    );
+
+    const replayWithoutReachableContext = {
+      ...structuredClone(seededReplays[0]),
+      operationalContext: operationalContextWithoutRunId,
+    };
+
+    const replayResponse = await app.handle(
+      new Request('http://agent-studio.test/api/ingest/replays', {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+        },
+        body: JSON.stringify(replayWithoutReachableContext),
+      }),
+    );
+
+    expect(replayResponse.status).toBe(400);
+    await expect(replayResponse.json()).resolves.toEqual(
+      expect.objectContaining({
+        error: 'Validation failed',
+        details: expect.arrayContaining([
+          expect.objectContaining({
+            path: 'operationalContext.runId',
           }),
         ]),
       }),

@@ -1,8 +1,28 @@
 import { operationalContextSchema, replaySchema, runSchema, workflowSchema } from '@agent-studio/contracts';
-import { ZodError } from 'zod';
+import { ZodError, z } from 'zod';
 
 import { errorResponse, jsonResponse, readJsonBody, validationErrorResponse } from '../http.js';
 import type { ApiStore } from '../store.js';
+
+const reachableOperationalContextSchema = operationalContextSchema.superRefine((operationalContext, context) => {
+  if (!operationalContext.runId) {
+    context.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ['runId'],
+      message: 'runId is required for this API surface.',
+    });
+  }
+});
+
+const ingestReplaySchema = replaySchema.superRefine((replay, context) => {
+  if (replay.operationalContext && !replay.operationalContext.runId) {
+    context.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ['operationalContext', 'runId'],
+      message: 'runId is required for this API surface.',
+    });
+  }
+});
 
 export async function handleIngestRoutes(request: Request, pathname: string, store: ApiStore): Promise<Response | null> {
   if (request.method !== 'POST') {
@@ -23,13 +43,13 @@ export async function handleIngestRoutes(request: Request, pathname: string, sto
     }
 
     if (pathname === '/api/ingest/replays') {
-      const payload = replaySchema.parse(await readJsonBody(request));
+      const payload = ingestReplaySchema.parse(await readJsonBody(request));
 
       return jsonResponse({ replay: store.upsertReplay(payload) }, { status: 201 });
     }
 
     if (pathname === '/api/ingest/operational-contexts') {
-      const payload = operationalContextSchema.parse(await readJsonBody(request));
+      const payload = reachableOperationalContextSchema.parse(await readJsonBody(request));
 
       return jsonResponse({ operationalContext: store.upsertOperationalContext(payload) }, { status: 201 });
     }
@@ -47,4 +67,3 @@ export async function handleIngestRoutes(request: Request, pathname: string, sto
 
   return null;
 }
-
