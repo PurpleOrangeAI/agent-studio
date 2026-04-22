@@ -535,6 +535,7 @@ export function App() {
               <OptimizeAdvancedPanel
                 savedPlans={selectedWorkflowState.optimize.candidateReplay.studioState?.savedPlans ?? []}
                 promotionHistory={selectedWorkflowState.optimize.promotionHistory}
+                controlPlane={selectedControlPlaneSystem}
               />
             }
             showAdvanced={advancedOpen.optimize}
@@ -551,6 +552,7 @@ export function App() {
               candidateReplay={selectedWorkflowState.optimize.candidateReplay}
               candidatePlan={selectedWorkflowState.optimize.candidatePlan}
               promotionSummary={selectedWorkflowState.optimize.promotionSummary}
+              controlPlane={selectedControlPlaneSystem}
             />
           </RoomShell>
         ) : null}

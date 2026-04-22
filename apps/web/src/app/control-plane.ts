@@ -3,6 +3,7 @@ import type {
   EvaluationRecord,
   ExecutionRecord,
   InterventionRecord,
+  MetricDelta,
   MetricSample,
   ReleaseDecision,
   RuntimeRegistration,
@@ -64,6 +65,30 @@ export function getAgentLabel(systemState: ControlPlaneSystemState | null | unde
   }
 
   return systemState.agents.find((agent) => agent.agentId === agentId)?.label ?? null;
+}
+
+export function getLatestEvaluation(systemState: ControlPlaneSystemState | null | undefined) {
+  if (!systemState) {
+    return null;
+  }
+
+  return systemState.evaluations[0] ?? null;
+}
+
+export function getLatestReleaseDecision(systemState: ControlPlaneSystemState | null | undefined) {
+  if (!systemState) {
+    return null;
+  }
+
+  return systemState.releases[0] ?? null;
+}
+
+export function getMetricDelta(evaluation: EvaluationRecord | null | undefined, metric: string): MetricDelta | null {
+  if (!evaluation?.metricDeltas?.length) {
+    return null;
+  }
+
+  return evaluation.metricDeltas.find((item) => item.metric === metric) ?? null;
 }
 
 function buildApiUrl(apiBaseUrl: string, pathname: string) {
