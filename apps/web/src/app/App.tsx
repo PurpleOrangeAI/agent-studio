@@ -15,6 +15,7 @@ import { ReplayAdvancedPanel } from '../features/replay/ReplayAdvancedPanel';
 import { ReplayPanel } from '../features/replay/ReplayPanel';
 import { SystemOverviewRoute } from '../features/system/SystemOverviewRoute';
 import {
+  buildSystemWorkflowState,
   getAgentLabel,
   getWorkflowIdForSystem,
   sortSystemsByActivity,
@@ -248,8 +249,9 @@ export function App() {
     null;
   const selectedSystemWorkflowId = getWorkflowIdForSystem(selectedSystemState);
   const defaultWorkflowState = demoState ? demoState.workflowStates[demoState.defaultWorkflowId] ?? null : null;
-  const selectedWorkflowState =
+  const seededWorkflowState =
     demoState && selectedSystemWorkflowId ? demoState.workflowStates[selectedSystemWorkflowId] ?? null : selectedSystemState ? null : defaultWorkflowState;
+  const selectedWorkflowState = seededWorkflowState ?? buildSystemWorkflowState(selectedSystemState);
   const hasRoomProjection = Boolean(selectedWorkflowState);
   const workflow = selectedWorkflowState?.workflow ?? null;
   const liveRun = selectedWorkflowState?.live.run ?? null;
@@ -331,6 +333,19 @@ export function App() {
 
     setSelectedAgentId(selectedSystemSummary?.pressureAgentId ?? selectedControlPlaneSystem.agents[0]?.agentId ?? '');
   }, [selectedAgentId, selectedControlPlaneSystem, selectedSystemSummary?.pressureAgentId]);
+
+  useEffect(() => {
+    if (!selectedControlPlaneSystem) {
+      return;
+    }
+
+    const preferredRuntimeId = selectedControlPlaneSystem.system.primaryRuntimeId ?? selectedControlPlaneSystem.system.runtimeIds[0];
+    if (!preferredRuntimeId || preferredRuntimeId === runtimeId) {
+      return;
+    }
+
+    setRuntimeId(preferredRuntimeId);
+  }, [runtimeId, selectedControlPlaneSystem]);
 
   useEffect(() => {
     if (!selectedControlPlaneSystem || selectedView === 'connect') {

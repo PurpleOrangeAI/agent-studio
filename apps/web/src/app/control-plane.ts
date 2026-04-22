@@ -1,16 +1,30 @@
 import type {
   AgentDefinition,
+  DirectiveMode,
   EvaluationRecord,
   ExecutionRecord,
   InterventionRecord,
   MetricDelta,
   MetricSample,
+  OperationalContext,
+  PhaseKind,
+  PolicySnapshot,
+  PromotionEvent,
+  Replay,
   ReleaseDecision,
+  RoleDirectiveMap,
+  Run,
+  RunStatus,
   RuntimeRegistration,
+  SavedPlan,
   SpanRecord,
+  StepExecution,
   SystemDefinition,
   TopologySnapshot,
+  Workflow,
+  WorkflowStep,
 } from '@agent-studio/contracts';
+import type { WorkflowDemoState } from './demo';
 
 export interface ControlPlaneSystemState {
   system: SystemDefinition;
@@ -85,6 +99,100 @@ export interface ControlPlaneImportBundle {
   releases?: ReleaseDecision[];
 }
 
+const DEFAULT_POLICY: PolicySnapshot = {
+  mode: 'recommended',
+  optimizationGoal: 'balanced',
+  reviewPolicy: 'standard',
+  maxElasticLanes: 1,
+};
+
+function formatTokenLabel(value: string) {
+  return value
+    .split(/[._\s-]+/)
+    .filter(Boolean)
+    .map((token) => token.charAt(0).toUpperCase() + token.slice(1))
+    .join(' ');
+}
+
+function toRoleSlug(value: string) {
+  return value
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '');
+}
+
+function createSyntheticWorkflowId(systemId: string) {
+  return `system:${systemId}`;
+}
+
+function coercePhaseKind(value?: string): PhaseKind {
+  switch (value) {
+    case 'search':
+    case 'query':
+    case 'capture':
+    case 'analyze':
+    case 'summarize':
+    case 'deliver':
+    case 'note':
+      return value;
+    default:
+      return 'note';
+  }
+}
+
+function coerceRunStatus(value?: string): RunStatus {
+  switch (value) {
+    case 'planned':
+    case 'running':
+    case 'succeeded':
+    case 'failed':
+    case 'skipped':
+      return value;
+    case 'active':
+      return 'running';
+    default:
+      return 'planned';
+  }
+}
+
+function parseDirectiveMode(action?: string): DirectiveMode | undefined {
+  if (!action?.startsWith('directive.')) {
+    return undefined;
+  }
+
+  const mode = action.slice('directive.'.length);
+
+  if (mode === 'cheaper' || mode === 'review' || mode === 'promote') {
+    return mode;
+  }
+
+  return undefined;
+}
+
+function readMetadataRecord(metadata: unknown) {
+  if (!metadata || typeof metadata !== 'object' || Array.isArray(metadata)) {
+    return null;
+  }
+
+  return metadata as Record<string, unknown>;
+}
+
+function readMetadataString(metadata: unknown, key: string) {
+  const record = readMetadataRecord(metadata);
+  const value = record?.[key];
+
+  return typeof value === 'string' && value.trim().length > 0 ? value : null;
+}
+
+function readMetricValue(metrics: MetricSample[], metric: string) {
+  return metrics.find((sample) => sample.metric === metric)?.value;
+}
+
+function sortExecutionsByNewest(executions: ExecutionRecord[]) {
+  return [...executions].sort((left, right) => compareByNewest(left.finishedAt ?? left.startedAt, right.finishedAt ?? right.startedAt));
+}
+
 export function getExecutionForRun(systemState: ControlPlaneSystemState | null | undefined, runId: string) {
   if (!systemState) {
     return null;
@@ -150,6 +258,473 @@ export function getWorkflowIdForSystem(systemState: ControlPlaneSystemState | nu
   const workflowId = (metadata as Record<string, unknown>).workflowId;
 
   return typeof workflowId === 'string' && workflowId.trim().length > 0 ? workflowId : null;
+}
+
+function buildWorkflowSteps(systemState: ControlPlaneSystemState): WorkflowStep[] {
+  const topologyNodes = systemState.topology?.nodes ?? [];
+  const topologyEdges = systemState.topology?.edges ?? [];
+  const nodes =
+    topologyNodes.length > 0
+      ? topologyNodes.map((node) => ({
+          id: node.nodeId,
+          label: node.label,
+          role: node.role ?? systemState.agents.find((agent) => agent.agentId === node.agentId)?.role ?? toRoleSlug(node.label),
+          kind:
+            systemState.executionSpans &&
+            Object.values(systemState.executionSpans)
+              .flat()
+              .find((span) => span.nodeId === node.nodeId || (node.agentId && span.agentId === node.agentId))?.kind,
+          objective:
+            Object.values(systemState.executionSpans)
+              .flat()
+              .find((span) => span.nodeId === node.nodeId || (node.agentId && span.agentId === node.agentId))?.summary ??
+            `Track ${node.label} inside ${systemState.system.name}.`,
+          toolName: systemState.agents.find((agent) => agent.agentId === node.agentId)?.toolRefs?.[0],
+        }))
+      : systemState.agents.map((agent) => ({
+          id: agent.agentId,
+          label: agent.label,
+          role: agent.role ?? toRoleSlug(agent.label),
+          kind:
+            Object.values(systemState.executionSpans)
+              .flat()
+              .find((span) => span.agentId === agent.agentId)?.kind ??
+            agent.capabilities?.[0],
+          objective:
+            Object.values(systemState.executionSpans)
+              .flat()
+              .find((span) => span.agentId === agent.agentId)?.summary ??
+            `Track ${agent.label} inside ${systemState.system.name}.`,
+          toolName: agent.toolRefs?.[0],
+        }));
+
+  return nodes.map((node, index) => {
+    const dependsOnStepIds =
+      topologyEdges.length > 0
+        ? topologyEdges.filter((edge) => edge.targetNodeId === node.id).map((edge) => edge.sourceNodeId)
+        : index > 0
+          ? [nodes[index - 1].id]
+          : undefined;
+
+    return {
+      stepId: node.id,
+      kind: coercePhaseKind(node.kind),
+      title: node.label,
+      objective: node.objective,
+      assignedRole: node.role,
+      dependsOnStepIds: dependsOnStepIds?.length ? dependsOnStepIds : undefined,
+      toolName: node.toolName,
+    };
+  });
+}
+
+function buildSyntheticWorkflow(systemState: ControlPlaneSystemState): Workflow {
+  const workflowId = createSyntheticWorkflowId(systemState.system.systemId);
+
+  return {
+    workspaceId: systemState.system.workspaceId,
+    workflowId,
+    name: systemState.system.name,
+    description: systemState.system.description,
+    status: systemState.system.status ?? 'active',
+    createdAt: systemState.system.createdAt,
+    updatedAt: systemState.system.updatedAt,
+    steps: buildWorkflowSteps(systemState),
+    policy: DEFAULT_POLICY,
+  };
+}
+
+function buildRunFromExecution(workflowId: string, systemState: ControlPlaneSystemState, execution?: ExecutionRecord | null): Run {
+  if (!execution) {
+    const ts = systemState.system.updatedAt ?? systemState.system.createdAt ?? new Date().toISOString();
+
+    return {
+      runId: `run_${systemState.system.systemId}_pending`,
+      workflowId,
+      status: 'planned',
+      startedAt: ts,
+      experimentLabel: 'Awaiting first execution',
+    };
+  }
+
+  return {
+    runId: execution.runId ?? execution.executionId,
+    workflowId,
+    status: coerceRunStatus(execution.status),
+    startedAt: execution.startedAt,
+    finishedAt: execution.finishedAt,
+    actualCredits: readMetricValue(getExecutionMetrics(systemState, execution.executionId), 'credits.actual'),
+    durationMs: readMetricValue(getExecutionMetrics(systemState, execution.executionId), 'duration.ms'),
+    experimentLabel:
+      readMetadataString(execution.metadata, 'experimentLabel') ??
+      readMetadataString(execution.metadata, 'scenarioLabel') ??
+      `${systemState.system.name} ${formatTokenLabel(execution.status)}`,
+  };
+}
+
+function buildRoleDirectives(systemState: ControlPlaneSystemState): RoleDirectiveMap | undefined {
+  const directiveEntries: Array<[string, RoleDirectiveMap[string]]> = [];
+
+  systemState.interventions
+    .filter((intervention) => intervention.targetScopeType === 'agent')
+    .forEach((intervention) => {
+      const mode = parseDirectiveMode(intervention.action);
+      const agent = systemState.agents.find((item) => item.agentId === intervention.targetScopeId);
+      const role = agent?.role ?? toRoleSlug(agent?.label ?? intervention.targetScopeId);
+      const phases = readMetadataRecord(intervention.configPatch)?.phases;
+
+      if (!mode || !role) {
+        return;
+      }
+
+      directiveEntries.push([
+        role,
+        {
+          mode,
+          phases: Array.isArray(phases)
+            ? phases.filter((phase): phase is PhaseKind => typeof phase === 'string').map((phase) => coercePhaseKind(phase))
+            : undefined,
+          updatedAt: intervention.appliedAt ?? intervention.requestedAt,
+        },
+      ]);
+    });
+
+  const directives = Object.fromEntries(directiveEntries);
+
+  return Object.keys(directives).length ? directives : undefined;
+}
+
+function buildStepExecutions(systemState: ControlPlaneSystemState, workflow: Workflow, execution?: ExecutionRecord | null): StepExecution[] {
+  if (!execution) {
+    return workflow.steps.map((step) => ({
+      stepId: step.stepId,
+      kind: step.kind,
+      title: step.title,
+      assignedRole: step.assignedRole,
+      status: 'planned',
+      summary: `No execution has been recorded for ${step.title} yet.`,
+    }));
+  }
+
+  const spans = getExecutionSpans(systemState, execution.executionId);
+  if (!spans.length) {
+    return workflow.steps.map((step) => ({
+      stepId: step.stepId,
+      kind: step.kind,
+      title: step.title,
+      assignedRole: step.assignedRole,
+      status: coerceRunStatus(execution.status),
+      startedAt: execution.startedAt,
+      finishedAt: execution.finishedAt,
+      summary: `Execution ${execution.executionId} has no span breakdown yet.`,
+    }));
+  }
+
+  return spans.map((span) => {
+    const agent = span.agentId ? systemState.agents.find((item) => item.agentId === span.agentId) : undefined;
+    const latestDirective =
+      span.agentId != null
+        ? systemState.interventions
+            .filter((intervention) => intervention.targetScopeType === 'agent' && intervention.targetScopeId === span.agentId)
+            .sort((left, right) => compareByNewest(left.appliedAt ?? left.requestedAt, right.appliedAt ?? right.requestedAt))[0]
+        : undefined;
+    const directivePhases = readMetadataRecord(latestDirective?.configPatch)?.phases;
+
+    return {
+      stepId: span.nodeId ?? span.agentId ?? span.spanId,
+      kind: coercePhaseKind(span.kind),
+      title: span.name,
+      assignedRole: agent?.role ?? toRoleSlug(agent?.label ?? span.name),
+      status: coerceRunStatus(span.status),
+      startedAt: span.startedAt,
+      finishedAt: span.finishedAt,
+      durationMs: span.usage?.durationMs,
+      actualCredits: span.usage?.credits,
+      tokenUsage:
+        span.usage?.inputTokens != null || span.usage?.outputTokens != null || span.usage?.totalTokens != null
+          ? {
+              inputTokens: span.usage?.inputTokens,
+              outputTokens: span.usage?.outputTokens,
+              totalTokens: span.usage?.totalTokens,
+            }
+          : undefined,
+      toolCalls: span.usage?.toolCalls,
+      directiveMode: parseDirectiveMode(latestDirective?.action),
+      directivePhases: Array.isArray(directivePhases)
+        ? directivePhases.filter((phase): phase is PhaseKind => typeof phase === 'string').map((phase) => coercePhaseKind(phase))
+        : undefined,
+      summary: span.summary ?? `Execution span for ${span.name}.`,
+      error: span.status === 'failed' ? span.summary ?? `${span.name} failed.` : undefined,
+    };
+  });
+}
+
+function buildHealthyComparison(
+  workflowId: string,
+  selectedRun: Run,
+  baselineRun: Run | null,
+): OperationalContext['lastHealthyComparison'] | undefined {
+  if (!baselineRun || baselineRun.runId === selectedRun.runId) {
+    return undefined;
+  }
+
+  const creditsDelta =
+    selectedRun.actualCredits != null && baselineRun.actualCredits != null ? selectedRun.actualCredits - baselineRun.actualCredits : undefined;
+  const durationDelta =
+    selectedRun.durationMs != null && baselineRun.durationMs != null ? selectedRun.durationMs - baselineRun.durationMs : undefined;
+
+  const changedSignals = [
+    creditsDelta != null && creditsDelta !== 0 ? `Spend shifted by ${creditsDelta > 0 ? '+' : ''}${creditsDelta} credits` : null,
+    durationDelta != null && durationDelta !== 0 ? `Duration shifted by ${Math.round(durationDelta / 1000)} seconds` : null,
+    selectedRun.status !== baselineRun.status ? `Status changed from ${baselineRun.status} to ${selectedRun.status}` : null,
+  ].filter((value): value is string => value != null);
+
+  return {
+    runId: baselineRun.runId,
+    label: baselineRun.experimentLabel ?? baselineRun.runId,
+    startedAt: baselineRun.startedAt,
+    finishedAt: baselineRun.finishedAt,
+    creditsDelta,
+    durationDelta,
+    changedSignals,
+    summary:
+      changedSignals[0] ??
+      `Using ${baselineRun.experimentLabel ?? baselineRun.runId} as the nearest healthy comparison for ${selectedRun.experimentLabel ?? selectedRun.runId}.`,
+  };
+}
+
+function buildSimilarRuns(executions: ExecutionRecord[], selectedRun: Run, workflowId: string, systemState: ControlPlaneSystemState) {
+  return sortExecutionsByNewest(executions)
+    .filter((execution) => (execution.runId ?? execution.executionId) !== selectedRun.runId)
+    .slice(0, 3)
+    .map((execution) => {
+      const comparedRun = buildRunFromExecution(workflowId, systemState, execution);
+      const matchedSignals = [
+        comparedRun.status === selectedRun.status ? `Both runs ended ${selectedRun.status}` : `Status diverged from ${selectedRun.status}`,
+        comparedRun.actualCredits != null && selectedRun.actualCredits != null
+          ? `Spend delta ${comparedRun.actualCredits - selectedRun.actualCredits > 0 ? '+' : ''}${(comparedRun.actualCredits - selectedRun.actualCredits).toFixed(0)}`
+          : 'Metric comparison pending',
+      ];
+
+      return {
+        runId: comparedRun.runId,
+        label: comparedRun.experimentLabel ?? comparedRun.runId,
+        status: comparedRun.status,
+        startedAt: comparedRun.startedAt,
+        finishedAt: comparedRun.finishedAt,
+        actualCredits: comparedRun.actualCredits,
+        durationMs: comparedRun.durationMs,
+        similarityScore: comparedRun.status === selectedRun.status ? 0.86 : 0.62,
+        matchedSignals,
+      };
+    });
+}
+
+function buildRecommendationEvidence(systemState: ControlPlaneSystemState, execution: ExecutionRecord | null | undefined, run: Run) {
+  const spans = execution ? getExecutionSpans(systemState, execution.executionId) : [];
+  const failedSpan = spans.find((span) => span.status === 'failed') ?? null;
+  const latestIntervention = systemState.interventions[0] ?? null;
+  const latestEvaluation = getLatestEvaluation(systemState);
+  const latestRelease = getLatestReleaseDecision(systemState);
+
+  const evidence = [
+    failedSpan
+      ? {
+          evidenceId: `evidence_${failedSpan.spanId}`,
+          title: `${failedSpan.name} is the current break`,
+          body: failedSpan.summary ?? `${failedSpan.name} failed inside the current execution trace.`,
+          sourceLabel: run.experimentLabel ?? run.runId,
+          phase: coercePhaseKind(failedSpan.kind),
+          relatedRunIds: [run.runId],
+        }
+      : null,
+    latestIntervention
+      ? {
+          evidenceId: latestIntervention.interventionId,
+          title: formatTokenLabel(latestIntervention.action),
+          body: latestIntervention.reason,
+          sourceLabel: 'Latest intervention',
+          relatedRunIds: latestIntervention.relatedTraceId ? [latestIntervention.relatedTraceId] : undefined,
+        }
+      : null,
+    latestEvaluation
+      ? {
+          evidenceId: latestEvaluation.evaluationId,
+          title: `${formatTokenLabel(latestEvaluation.verdict)} evaluation`,
+          body: latestEvaluation.summary ?? 'Latest evaluation imported into the control plane.',
+          sourceLabel: 'Latest evaluation',
+          relatedRunIds: [...latestEvaluation.baselineRefs, ...latestEvaluation.candidateRefs],
+        }
+      : null,
+    latestRelease
+      ? {
+          evidenceId: latestRelease.releaseId,
+          title: `${formatTokenLabel(latestRelease.decision)} release`,
+          body: latestRelease.summary ?? 'Latest release decision imported into the control plane.',
+          sourceLabel: 'Latest release',
+          relatedRunIds: [latestRelease.candidateRef, latestRelease.baselineRef].filter((value): value is string => Boolean(value)),
+        }
+      : null,
+  ].filter((item): item is NonNullable<typeof item> => item != null);
+
+  return evidence.length
+    ? evidence
+    : [
+        {
+          evidenceId: `evidence_${systemState.system.systemId}_pending`,
+          title: 'Import more execution evidence',
+          body: 'This system has enough registry data to render, but Replay and Optimize will get stronger once more spans, evaluations, and releases land.',
+          sourceLabel: 'System registry',
+          relatedRunIds: [run.runId],
+        },
+      ];
+}
+
+function buildReplayFromExecution(
+  systemState: ControlPlaneSystemState,
+  workflow: Workflow,
+  run: Run,
+  baselineRun: Run | null,
+  execution?: ExecutionRecord | null,
+): Replay {
+  return {
+    workflow,
+    run,
+    policy: workflow.policy,
+    stepExecutions: buildStepExecutions(systemState, workflow, execution),
+    studioState: {
+      roleDirectives: buildRoleDirectives(systemState),
+      promotionHistory: buildPromotionHistory(systemState),
+      savedPlans: buildSavedPlans(systemState, workflow),
+    },
+    operationalContext: {
+      workflowId: workflow.workflowId,
+      runId: run.runId,
+      generatedAt: execution?.finishedAt ?? execution?.startedAt ?? run.startedAt,
+      similarRuns: buildSimilarRuns(systemState.executions, run, workflow.workflowId, systemState),
+      lastHealthyComparison: buildHealthyComparison(workflow.workflowId, run, baselineRun),
+      recommendationEvidence: buildRecommendationEvidence(systemState, execution, run),
+    },
+  };
+}
+
+function buildSavedPlans(systemState: ControlPlaneSystemState, workflow: Workflow): SavedPlan[] {
+  const latestEvaluation = getLatestEvaluation(systemState);
+  const latestRelease = getLatestReleaseDecision(systemState);
+  const roleDirectives = buildRoleDirectives(systemState);
+  const createdAt =
+    latestRelease?.appliedAt ??
+    latestRelease?.requestedAt ??
+    latestEvaluation?.createdAt ??
+    systemState.system.updatedAt ??
+    systemState.system.createdAt ??
+    new Date().toISOString();
+
+  if (!latestEvaluation && !latestRelease && !roleDirectives) {
+    return [];
+  }
+
+  return [
+    {
+      id:
+        readMetadataString(latestEvaluation?.metadata, 'candidatePlanId') ??
+        latestRelease?.candidateRef ??
+        `plan_${systemState.system.systemId}_current`,
+      name: latestRelease ? `${formatTokenLabel(latestRelease.decision)} candidate` : 'Control-plane candidate',
+      createdAt,
+      scenarioId: workflow.workflowId,
+      previewPresetId: 'control-plane',
+      executionPolicy: workflow.policy ?? DEFAULT_POLICY,
+      roleDirectives,
+      notes: latestEvaluation?.summary ?? latestRelease?.summary ?? `Current saved plan derived from ${systemState.system.name}.`,
+    },
+  ];
+}
+
+function buildPromotionHistory(systemState: ControlPlaneSystemState): PromotionEvent[] {
+  return [...systemState.releases]
+    .sort((left, right) => compareByNewest(left.appliedAt ?? left.requestedAt, right.appliedAt ?? right.requestedAt))
+    .map((release) => {
+      const metadata = readMetadataRecord(release.metadata);
+
+      return {
+        eventId: release.releaseId,
+        appliedAt: release.appliedAt ?? release.requestedAt,
+        mode: release.decision === 'rollback' ? 'rollback' : 'graduation',
+        summary: release.summary ?? `${formatTokenLabel(release.decision)} release applied to ${systemState.system.name}.`,
+        sourceExperimentId: release.evidenceRefs?.[0],
+        planId: release.candidateRef,
+        confidence: typeof metadata?.confidence === 'number' ? metadata.confidence : undefined,
+        successDelta: typeof metadata?.successDelta === 'number' ? metadata.successDelta : undefined,
+        creditsDelta: typeof metadata?.creditsDelta === 'number' ? metadata.creditsDelta : undefined,
+        durationDelta: typeof metadata?.durationDelta === 'number' ? metadata.durationDelta : undefined,
+      };
+    });
+}
+
+export function buildSystemWorkflowState(systemState: ControlPlaneSystemState | null | undefined): WorkflowDemoState | null {
+  if (!systemState) {
+    return null;
+  }
+
+  const workflow = buildSyntheticWorkflow(systemState);
+  const sortedExecutions = sortExecutionsByNewest(systemState.executions);
+  const liveExecution = sortedExecutions[0] ?? null;
+  const replayExecution = sortedExecutions.find((execution) => coerceRunStatus(execution.status) === 'failed') ?? liveExecution;
+  const candidateExecution =
+    (getLatestReleaseDecision(systemState)?.candidateRef
+      ? sortedExecutions.find(
+          (execution) =>
+            execution.executionId === getLatestReleaseDecision(systemState)?.candidateRef ||
+            execution.runId === getLatestReleaseDecision(systemState)?.candidateRef,
+        ) ?? null
+      : null) ??
+    liveExecution;
+
+  const liveRun = buildRunFromExecution(workflow.workflowId, systemState, liveExecution);
+  const replayRun = buildRunFromExecution(workflow.workflowId, systemState, replayExecution);
+  const candidateRun = buildRunFromExecution(workflow.workflowId, systemState, candidateExecution);
+
+  const latestSuccessfulExecution =
+    sortedExecutions.find(
+      (execution) =>
+        coerceRunStatus(execution.status) === 'succeeded' &&
+        (execution.runId ?? execution.executionId) !== replayRun.runId &&
+        (execution.runId ?? execution.executionId) !== candidateRun.runId,
+    ) ??
+    sortedExecutions.find((execution) => coerceRunStatus(execution.status) === 'succeeded') ??
+    candidateExecution ??
+    replayExecution;
+
+  const baselineRun = buildRunFromExecution(workflow.workflowId, systemState, latestSuccessfulExecution);
+  const savedPlans = buildSavedPlans(systemState, workflow);
+  const promotionHistory = buildPromotionHistory(systemState);
+
+  return {
+    workflow,
+    runsByNewest: sortedExecutions.map((execution) => buildRunFromExecution(workflow.workflowId, systemState, execution)),
+    live: {
+      run: liveRun,
+      replay: buildReplayFromExecution(systemState, workflow, liveRun, baselineRun, liveExecution),
+    },
+    replay: {
+      run: replayRun,
+      replay: buildReplayFromExecution(systemState, workflow, replayRun, baselineRun, replayExecution),
+      baselineRun,
+    },
+    optimize: {
+      baselineRun,
+      candidateRun,
+      candidateReplay: buildReplayFromExecution(systemState, workflow, candidateRun, baselineRun, candidateExecution),
+      candidatePlan: savedPlans[0] ?? null,
+      promotionHistory,
+      promotionSummary:
+        getLatestReleaseDecision(systemState)?.summary ??
+        getLatestEvaluation(systemState)?.summary ??
+        promotionHistory[0]?.summary ??
+        `Imported release evidence for ${systemState.system.name}.`,
+    },
+  };
 }
 
 function compareByNewest(left?: string, right?: string) {

@@ -19,6 +19,14 @@ export function LivePanel({ workflow, run, replay, controlPlane }: LivePanelProp
   const systemAgentCount = controlPlane?.agents.length ?? null;
   const systemExecutionCount = controlPlane?.executions.length ?? null;
   const systemReleaseCount = controlPlane?.releases.length ?? null;
+  const postureSummary =
+    replay.stepExecutions[0]?.summary ??
+    recommendation?.body ??
+    (run.status === 'planned'
+      ? 'This system is registered and ready for its first traced execution.'
+      : controlPlane
+        ? 'This room is reading live execution state directly from imported control-plane data.'
+        : 'This room is reading the seeded workflow projection.');
 
   return (
     <div className="room-stack">
@@ -49,8 +57,7 @@ export function LivePanel({ workflow, run, replay, controlPlane }: LivePanelProp
           </div>
         </div>
         <p className="feature-summary">
-          {replay.stepExecutions[0]?.summary} The run finished with a safe publish path and gives the public demo a stable
-          “healthy now” state to orient around.
+          {postureSummary}
         </p>
         <div className="signal-band">
           <article className="signal-band__card">

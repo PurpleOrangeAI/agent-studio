@@ -214,6 +214,247 @@ const controlPlaneFixture: ControlPlaneState = {
   systemsByWorkflowId: {},
 };
 
+const importedSystemState: ControlPlaneState['systems'][number] = {
+  system: {
+    systemId: 'system_imported',
+    workspaceId: 'workspace_imported',
+    name: 'Imported support triage',
+    description: 'A bring-your-own agent system imported through the control-plane ingest path.',
+    runtimeIds: ['runtime_imported'],
+    primaryRuntimeId: 'runtime_imported',
+    status: 'active',
+  },
+  agents: [
+    {
+      agentId: 'agent_triage_manager',
+      systemId: 'system_imported',
+      runtimeId: 'runtime_imported',
+      label: 'Triage manager',
+      kind: 'coordinator',
+      role: 'manager',
+      status: 'active',
+    },
+    {
+      agentId: 'agent_support_reviewer',
+      systemId: 'system_imported',
+      runtimeId: 'runtime_imported',
+      label: 'Support reviewer',
+      kind: 'specialist',
+      role: 'reviewer',
+      status: 'active',
+    },
+  ],
+  topology: {
+    snapshotId: 'topology_imported',
+    systemId: 'system_imported',
+    capturedAt: '2026-04-22T12:00:00.000Z',
+    nodes: [
+      {
+        nodeId: 'node_manager',
+        agentId: 'agent_triage_manager',
+        runtimeId: 'runtime_imported',
+        label: 'Triage manager',
+        kind: 'coordinator',
+        role: 'manager',
+      },
+      {
+        nodeId: 'node_reviewer',
+        agentId: 'agent_support_reviewer',
+        runtimeId: 'runtime_imported',
+        label: 'Support reviewer',
+        kind: 'specialist',
+        role: 'reviewer',
+      },
+    ],
+    edges: [
+      {
+        edgeId: 'edge_manager_reviewer',
+        sourceNodeId: 'node_manager',
+        targetNodeId: 'node_reviewer',
+        kind: 'handoff',
+      },
+    ],
+  },
+  executions: [
+    {
+      executionId: 'exec_imported_latest',
+      systemId: 'system_imported',
+      runtimeId: 'runtime_imported',
+      traceId: 'trace_imported_latest',
+      status: 'running',
+      startedAt: '2026-04-22T12:05:00.000Z',
+      finishedAt: '2026-04-22T12:11:00.000Z',
+      runId: 'run_imported_latest',
+      metadata: {
+        experimentLabel: 'Imported live execution',
+      },
+    },
+    {
+      executionId: 'exec_imported_baseline',
+      systemId: 'system_imported',
+      runtimeId: 'runtime_imported',
+      traceId: 'trace_imported_baseline',
+      status: 'succeeded',
+      startedAt: '2026-04-21T12:05:00.000Z',
+      finishedAt: '2026-04-21T12:10:00.000Z',
+      runId: 'run_imported_baseline',
+      metadata: {
+        experimentLabel: 'Imported baseline execution',
+      },
+    },
+  ],
+  executionSpans: {
+    exec_imported_latest: [
+      {
+        spanId: 'span_imported_capture',
+        traceId: 'trace_imported_latest',
+        executionId: 'exec_imported_latest',
+        nodeId: 'node_manager',
+        agentId: 'agent_triage_manager',
+        name: 'Collect incoming tickets',
+        kind: 'capture',
+        status: 'succeeded',
+        startedAt: '2026-04-22T12:05:00.000Z',
+        finishedAt: '2026-04-22T12:06:00.000Z',
+        summary: 'Collected the current support queue.',
+        usage: {
+          credits: 4,
+          durationMs: 60000,
+        },
+      },
+      {
+        spanId: 'span_imported_review',
+        traceId: 'trace_imported_latest',
+        executionId: 'exec_imported_latest',
+        parentSpanId: 'span_imported_capture',
+        nodeId: 'node_reviewer',
+        agentId: 'agent_support_reviewer',
+        name: 'Review escalation batch',
+        kind: 'review',
+        status: 'failed',
+        startedAt: '2026-04-22T12:06:10.000Z',
+        finishedAt: '2026-04-22T12:11:00.000Z',
+        summary: 'Escalation review tripped the response policy.',
+        usage: {
+          credits: 8,
+          durationMs: 290000,
+        },
+      },
+    ],
+    exec_imported_baseline: [
+      {
+        spanId: 'span_imported_baseline_capture',
+        traceId: 'trace_imported_baseline',
+        executionId: 'exec_imported_baseline',
+        nodeId: 'node_manager',
+        agentId: 'agent_triage_manager',
+        name: 'Collect incoming tickets',
+        kind: 'capture',
+        status: 'succeeded',
+        startedAt: '2026-04-21T12:05:00.000Z',
+        finishedAt: '2026-04-21T12:06:00.000Z',
+        summary: 'Collected the previous support queue cleanly.',
+        usage: {
+          credits: 3,
+          durationMs: 60000,
+        },
+      },
+    ],
+  },
+  executionMetrics: {
+    exec_imported_latest: [
+      {
+        sampleId: 'metric_imported_latest_credits',
+        metric: 'credits.actual',
+        unit: 'credits',
+        value: 12,
+        ts: '2026-04-22T12:11:00.000Z',
+        scopeType: 'execution',
+        scopeId: 'exec_imported_latest',
+      },
+      {
+        sampleId: 'metric_imported_latest_duration',
+        metric: 'duration.ms',
+        unit: 'ms',
+        value: 360000,
+        ts: '2026-04-22T12:11:00.000Z',
+        scopeType: 'execution',
+        scopeId: 'exec_imported_latest',
+      },
+    ],
+    exec_imported_baseline: [
+      {
+        sampleId: 'metric_imported_baseline_credits',
+        metric: 'credits.actual',
+        unit: 'credits',
+        value: 7,
+        ts: '2026-04-21T12:10:00.000Z',
+        scopeType: 'execution',
+        scopeId: 'exec_imported_baseline',
+      },
+      {
+        sampleId: 'metric_imported_baseline_duration',
+        metric: 'duration.ms',
+        unit: 'ms',
+        value: 300000,
+        ts: '2026-04-21T12:10:00.000Z',
+        scopeType: 'execution',
+        scopeId: 'exec_imported_baseline',
+      },
+    ],
+  },
+  interventions: [
+    {
+      interventionId: 'intervention_imported_review',
+      targetScopeType: 'agent',
+      targetScopeId: 'agent_support_reviewer',
+      actor: 'operator',
+      action: 'directive.review',
+      reason: 'Keep the imported reviewer under tighter scrutiny until the escalation path is stable.',
+      requestedAt: '2026-04-22T12:12:00.000Z',
+      appliedAt: '2026-04-22T12:12:00.000Z',
+      status: 'applied',
+      configPatch: {
+        phases: ['note'],
+      },
+    },
+  ],
+  evaluations: [
+    {
+      evaluationId: 'evaluation_imported',
+      targetScopeType: 'system',
+      targetScopeId: 'system_imported',
+      baselineRefs: ['run_imported_baseline'],
+      candidateRefs: ['run_imported_latest'],
+      verdict: 'hold',
+      createdAt: '2026-04-22T12:13:00.000Z',
+      summary: 'Hold the imported release until the escalation review path clears.',
+      metricDeltas: [
+        {
+          metric: 'credits.actual',
+          unit: 'credits',
+          baselineValue: 7,
+          candidateValue: 12,
+          delta: 5,
+        },
+      ],
+    },
+  ],
+  releases: [
+    {
+      releaseId: 'release_imported',
+      systemId: 'system_imported',
+      candidateRef: 'run_imported_latest',
+      baselineRef: 'run_imported_baseline',
+      decision: 'hold',
+      requestedAt: '2026-04-22T12:14:00.000Z',
+      appliedAt: '2026-04-22T12:14:00.000Z',
+      status: 'applied',
+      summary: 'Hold the imported release until the reviewer stops tripping the escalation policy.',
+    },
+  ],
+};
+
 vi.mock('./demo', () => ({
   loadDemoState: loadDemoStateMock,
 }));
@@ -229,6 +470,7 @@ vi.mock('./control-plane', async (importOriginal) => {
 
 describe('App shell', () => {
   beforeEach(() => {
+    window.history.pushState({}, '', '/');
     loadDemoStateMock.mockResolvedValue(demoStateFixture);
     loadControlPlaneStateMock.mockResolvedValue({
       ...controlPlaneFixture,
@@ -253,5 +495,32 @@ describe('App shell', () => {
     expect(screen.getAllByRole('heading', { level: 3, name: /weekly operations brief/i }).length).toBeGreaterThan(0);
     expect(screen.getAllByText(/guardrailed candidate/i).length).toBeGreaterThan(0);
     expect(screen.getByText(/promoted the tighter fan-out plan/i)).toBeInTheDocument();
+  });
+
+  it('renders a live room for an imported system without a seeded workflow mapping', async () => {
+    window.history.pushState({}, '', '/systems/system_imported/live');
+    loadControlPlaneStateMock.mockResolvedValue({
+      ...controlPlaneFixture,
+      runtimes: [
+        ...controlPlaneFixture.runtimes,
+        {
+          runtimeId: 'runtime_imported',
+          kind: 'custom',
+          adapterId: 'custom-ingest',
+          label: 'Imported runtime',
+        },
+      ],
+      systems: [controlPlaneFixture.systems[0], importedSystemState],
+      systemsByWorkflowId: {
+        workflow_ops_brief: controlPlaneFixture.systems[0],
+      },
+    });
+
+    render(<App />);
+
+    expect(await screen.findByLabelText(/^system$/i)).toHaveValue('system_imported');
+    expect(screen.getByRole('heading', { name: /working agents and command flow/i })).toBeInTheDocument();
+    expect(screen.getByText(/this topology now reads the control-plane model directly/i)).toBeInTheDocument();
+    expect(screen.queryByText(/no seeded room projection/i)).not.toBeInTheDocument();
   });
 });
