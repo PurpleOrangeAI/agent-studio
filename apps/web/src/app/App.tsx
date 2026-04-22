@@ -13,6 +13,16 @@ import { ReplayPanel } from '../features/replay/ReplayPanel';
 
 type RoomId = 'live' | 'replay' | 'optimize';
 
+type ControlLoopCue = {
+  eyebrow: string;
+  title: string;
+  body: string;
+  primaryLabel: string;
+  onPrimary: () => void;
+  secondaryLabel?: string;
+  onSecondary?: () => void;
+};
+
 const ROOM_LABELS: Record<
   RoomId,
   {
@@ -207,6 +217,37 @@ export function App() {
     ((candidateRun.durationMs ?? 0) - (selectedWorkflowState.optimize.baselineRun.durationMs ?? 0)) / 1000,
   );
   const selectedRuntime = demoState.runtimeOptions.find((option) => option.id === runtimeId);
+
+  const controlLoopCue: ControlLoopCue =
+    selectedRoom === 'live'
+      ? {
+          eyebrow: 'Control loop',
+          title: 'Next: open Replay',
+          body: `${replayRun.experimentLabel} is the clearest weak run in the loop. Use Replay to confirm what broke before you tune anything else.`,
+          primaryLabel: 'Open Replay',
+          onPrimary: () => setSelectedRoom('replay'),
+          secondaryLabel: failedReplayStep?.title ? `Focus ${failedReplayStep.title}` : undefined,
+          onSecondary: failedReplayStep?.title ? () => setSelectedRoom('replay') : undefined,
+        }
+      : selectedRoom === 'replay'
+        ? {
+            eyebrow: 'Control loop',
+            title: 'Next: test the fix in Optimize',
+            body: `Replay already identified the break. Move into Optimize and pressure-test ${candidateRun.experimentLabel} against the healthy control.`,
+            primaryLabel: 'Open Optimize',
+            onPrimary: () => setSelectedRoom('optimize'),
+            secondaryLabel: 'Back to Live',
+            onSecondary: () => setSelectedRoom('live'),
+          }
+        : {
+            eyebrow: 'Control loop',
+            title: 'Next: validate the promoted system in Live',
+            body: `${candidateRun.experimentLabel} looks strong enough to ship. Move back to Live and confirm the loop still feels healthy after the release call.`,
+            primaryLabel: 'Open Live',
+            onPrimary: () => setSelectedRoom('live'),
+            secondaryLabel: 'Re-open Replay',
+            onSecondary: () => setSelectedRoom('replay'),
+          };
 
   function dismissOnboarding() {
     setShowOnboarding(false);
@@ -409,6 +450,24 @@ export function App() {
                 <small>{ROOM_LABELS[room].summary}</small>
               </button>
             ))}
+          </div>
+        </section>
+
+        <section className="control-strip surface">
+          <div className="control-strip__copy">
+            <p className="eyebrow">{controlLoopCue.eyebrow}</p>
+            <h2>{controlLoopCue.title}</h2>
+            <p className="muted">{controlLoopCue.body}</p>
+          </div>
+          <div className="control-strip__actions">
+            <button type="button" className="control-strip__primary" onClick={controlLoopCue.onPrimary}>
+              {controlLoopCue.primaryLabel}
+            </button>
+            {controlLoopCue.secondaryLabel && controlLoopCue.onSecondary ? (
+              <button type="button" className="ghost-button" onClick={controlLoopCue.onSecondary}>
+                {controlLoopCue.secondaryLabel}
+              </button>
+            ) : null}
           </div>
         </section>
 
