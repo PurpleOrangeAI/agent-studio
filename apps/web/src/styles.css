@@ -687,13 +687,24 @@ li {
 .live-topology {
   display: grid;
   gap: 18px;
-  grid-template-columns: minmax(0, 1.4fr) minmax(280px, 0.75fr);
   margin-top: 20px;
+}
+
+.live-topology__toolbar {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+}
+
+.live-topology__hint {
+  margin: 12px 0 0;
+  color: rgba(238, 244, 255, 0.72);
+  font-size: 0.95rem;
 }
 
 .live-topology__canvas {
   position: relative;
-  min-height: 36rem;
+  min-height: 42rem;
   border-radius: 30px;
   overflow: hidden;
   border: 1px solid rgba(167, 190, 255, 0.12);
@@ -753,7 +764,7 @@ li {
   left: 50%;
   top: 50%;
   z-index: 2;
-  width: min(18rem, calc(100% - 4rem));
+  width: min(20rem, calc(100% - 4rem));
   transform: translate(-50%, -50%);
   border-radius: 28px;
   border: 1px solid rgba(184, 162, 255, 0.2);
@@ -787,7 +798,7 @@ li {
 .live-node {
   position: absolute;
   z-index: 3;
-  width: min(10rem, 24vw);
+  width: clamp(9.25rem, 16vw, 10.75rem);
   transform: translate(-50%, -50%);
   border-radius: 22px;
   border: 1px solid rgba(167, 190, 255, 0.12);
@@ -796,6 +807,18 @@ li {
     linear-gradient(180deg, rgba(255, 255, 255, 0.05), rgba(255, 255, 255, 0.015)),
     rgba(8, 15, 28, 0.9);
   box-shadow: 0 20px 42px rgba(0, 0, 0, 0.28);
+  cursor: grab;
+  user-select: none;
+  touch-action: none;
+  animation: live-node-float var(--float-duration, 6.8s) ease-in-out infinite;
+  animation-delay: var(--float-delay, 0s);
+  transition:
+    left 220ms ease,
+    top 220ms ease,
+    border-color 220ms ease,
+    box-shadow 220ms ease,
+    background 220ms ease,
+    transform 220ms ease;
 }
 
 .live-node--active {
@@ -810,6 +833,14 @@ li {
   background:
     linear-gradient(180deg, rgba(255, 142, 130, 0.12), rgba(255, 255, 255, 0.02)),
     rgba(8, 15, 28, 0.92);
+}
+
+.live-node--dragging {
+  z-index: 8;
+  cursor: grabbing;
+  animation: none;
+  transform: translate(-50%, -50%) scale(1.04);
+  box-shadow: 0 28px 56px rgba(0, 0, 0, 0.38);
 }
 
 .live-node__header {
@@ -876,6 +907,7 @@ li {
 .live-topology__rail {
   display: grid;
   gap: 12px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
 }
 
 .signal-card {
@@ -916,6 +948,17 @@ li {
   gap: 12px;
   grid-template-columns: repeat(4, minmax(0, 1fr));
   margin-top: 18px;
+}
+
+@keyframes live-node-float {
+  0%,
+  100% {
+    transform: translate(-50%, -50%) translateY(0px);
+  }
+
+  50% {
+    transform: translate(-50%, -50%) translateY(-8px);
+  }
 }
 
 .live-topology__stat {
@@ -1068,6 +1111,7 @@ li {
   .advanced-grid,
   .signal-band,
   .live-topology,
+  .live-topology__rail,
   .live-topology__footer,
   .metric-grid,
   .room-section__items {
@@ -1075,30 +1119,26 @@ li {
   }
 
   .live-topology__canvas {
-    min-height: auto;
-    padding: 18px;
-  }
-
-  .live-topology__orbit,
-  .live-topology__glow {
-    display: none;
-  }
-
-  .live-topology__core,
-  .live-node {
-    position: static;
-    width: 100%;
-    transform: none;
-  }
-
-  .live-topology__canvas {
-    display: grid;
-    gap: 12px;
+    min-height: 44rem;
   }
 
   .control-strip {
     flex-direction: column;
     align-items: stretch;
+  }
+
+  .live-topology__toolbar {
+    width: 100%;
+    justify-content: space-between;
+  }
+
+  .live-topology__core {
+    width: min(16rem, calc(100% - 2rem));
+  }
+
+  .live-node {
+    width: min(8.4rem, 38vw);
+    padding: 12px;
   }
 
   .timeline-list__item {
