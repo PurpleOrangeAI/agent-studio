@@ -2,6 +2,8 @@
 
 Start here:
 
+- [Product reset](./product-reset-2026-04-22.md)
+- [Architecture reset](./architecture-reset-2026-04-22.md)
 - [Quickstart](./quickstart.md)
 - [Install](./install.md)
 - [Demo](./demo.md)
