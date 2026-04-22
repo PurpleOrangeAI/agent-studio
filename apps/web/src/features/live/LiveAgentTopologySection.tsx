@@ -140,6 +140,32 @@ function formatDirectiveMode(mode?: DirectiveMode) {
   return mode.charAt(0).toUpperCase() + mode.slice(1);
 }
 
+function getBottleneckRole(replay: Replay, roleNodes: RoleNode[]) {
+  const failedStep = replay.stepExecutions.find((step) => step.status === 'failed');
+  if (failedStep?.assignedRole) {
+    return failedStep.assignedRole;
+  }
+
+  const recommendationPhase = replay.operationalContext?.recommendationEvidence[0]?.phase;
+  if (!recommendationPhase) {
+    return null;
+  }
+
+  const matchingExecution = replay.stepExecutions.find((step) => step.kind === recommendationPhase);
+  if (matchingExecution?.assignedRole) {
+    return matchingExecution.assignedRole;
+  }
+
+  return roleNodes.find((node) => node.phases.includes(recommendationPhase))?.role ?? null;
+}
+
+function buildLinkPath(x: number, y: number) {
+  const controlX = x < 50 ? 36 : 64;
+  const controlY = y < 50 ? 34 : 66;
+
+  return `M 50 50 C ${controlX} ${controlY}, ${x} ${y}, ${x} ${y}`;
+}
+
 function getStoredPositions(workflowId: string): Record<string, NodePosition> | null {
   if (typeof window === 'undefined') {
     return null;
@@ -183,6 +209,8 @@ export function LiveAgentTopologySection({ workflow, run, replay }: LiveAgentTop
   const healthyAnchor = replay.operationalContext?.lastHealthyComparison;
   const recommendation = replay.operationalContext?.recommendationEvidence[0];
   const directiveCount = Object.keys(replay.studioState?.roleDirectives ?? {}).length;
+  const bottleneckRole = getBottleneckRole(replay, roleNodes);
+  const bottleneckLabel = roleNodes.find((node) => node.role === bottleneckRole)?.label ?? null;
   const canvasRef = useRef<HTMLDivElement | null>(null);
   const dragStateRef = useRef<DragState | null>(null);
   const [draggingRole, setDraggingRole] = useState<string | null>(null);
@@ -295,7 +323,7 @@ export function LiveAgentTopologySection({ workflow, run, replay }: LiveAgentTop
         </div>
         <div className="live-topology__toolbar">
           <button type="button" className="ghost-button" onClick={resetLayout}>
-            Reset layout
+            Snap to orbit
           </button>
           <span className={`status-pill status-pill--${failedCount > 0 ? 'failed' : run.status}`}>
             {failedCount > 0 ? 'Pressure visible' : titleCaseStatus(run.status)}
@@ -309,7 +337,9 @@ export function LiveAgentTopologySection({ workflow, run, replay }: LiveAgentTop
       <p className="live-topology__hint">
         {draggingRole
           ? `Arranging ${roleNodes.find((node) => node.role === draggingRole)?.label ?? 'agent'}`
-          : 'Drag any agent card to rearrange the operating layout. Your layout stays in the browser for this workflow.'}
+          : bottleneckLabel
+            ? `Current pressure point: ${bottleneckLabel}. Drag any agent card to rearrange the layout, or snap back to orbit at any time.`
+            : 'Drag any agent card to rearrange the operating layout. Your layout stays in the browser for this workflow.'}
       </p>
 
       <div className="live-topology">
@@ -317,6 +347,28 @@ export function LiveAgentTopologySection({ workflow, run, replay }: LiveAgentTop
           <div className="live-topology__orbit live-topology__orbit--outer" />
           <div className="live-topology__orbit live-topology__orbit--inner" />
           <div className="live-topology__glow" />
+          <svg className="live-topology__links" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
+            {roleNodes.map((node) => {
+              const position = nodePositions[node.role] ?? { x: node.x, y: node.y };
+              const isBottleneck = node.role === bottleneckRole;
+              const path = buildLinkPath(position.x, position.y);
+              const toneClass =
+                node.status === 'failed'
+                  ? 'live-topology__link--failed'
+                  : isBottleneck
+                    ? 'live-topology__link--bottleneck'
+                    : node.status === 'active'
+                      ? 'live-topology__link--active'
+                      : 'live-topology__link--standby';
+
+              return (
+                <g key={`link-${node.role}`}>
+                  <path className={`live-topology__link live-topology__link-glow ${toneClass}`} d={path} />
+                  <path className={`live-topology__link live-topology__link-line ${toneClass}`} d={path} />
+                </g>
+              );
+            })}
+          </svg>
           <div className="live-topology__core">
             <p className="eyebrow">Control core</p>
             <strong>{workflow.name}</strong>
@@ -331,11 +383,12 @@ export function LiveAgentTopologySection({ workflow, run, replay }: LiveAgentTop
           {roleNodes.map((node, index) => {
             const position = nodePositions[node.role] ?? { x: node.x, y: node.y };
             const isDragging = draggingRole === node.role;
+            const isBottleneck = node.role === bottleneckRole;
 
             return (
               <article
                 key={node.role}
-                className={`live-node live-node--${node.status} ${isDragging ? 'live-node--dragging' : ''}`}
+                className={`live-node live-node--${node.status} ${isBottleneck ? 'live-node--bottleneck' : ''} ${isDragging ? 'live-node--dragging' : ''}`}
                 style={{
                   left: `${position.x}%`,
                   top: `${position.y}%`,
@@ -357,6 +410,7 @@ export function LiveAgentTopologySection({ workflow, run, replay }: LiveAgentTop
                   </div>
                   <span className={`live-node__status live-node__status--${node.status}`} />
                 </div>
+                {isBottleneck ? <p className="live-node__pressure">Pressure point</p> : null}
                 <p className="live-node__summary">{node.summary}</p>
                 <div className="live-node__tags">
                   <span className="meta-chip">{formatDirectiveMode(node.directiveMode)}</span>

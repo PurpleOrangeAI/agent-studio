@@ -726,6 +726,15 @@ li {
   pointer-events: none;
 }
 
+.live-topology__links {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+
 .live-topology__orbit,
 .live-topology__glow {
   position: absolute;
@@ -759,6 +768,40 @@ li {
   filter: blur(18px);
 }
 
+.live-topology__link {
+  fill: none;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.live-topology__link-glow {
+  stroke-width: 1.2;
+  opacity: 0.26;
+  filter: blur(7px);
+}
+
+.live-topology__link-line {
+  stroke-width: 0.35;
+  stroke-dasharray: 3.4 8.4;
+  animation: live-link-flow 12s linear infinite;
+}
+
+.live-topology__link--standby {
+  stroke: rgba(167, 190, 255, 0.2);
+}
+
+.live-topology__link--active {
+  stroke: rgba(125, 226, 209, 0.52);
+}
+
+.live-topology__link--failed {
+  stroke: rgba(255, 142, 130, 0.62);
+}
+
+.live-topology__link--bottleneck {
+  stroke: rgba(240, 177, 92, 0.78);
+}
+
 .live-topology__core {
   position: absolute;
   left: 50%;
@@ -774,6 +817,7 @@ li {
     linear-gradient(180deg, rgba(184, 162, 255, 0.12), rgba(125, 226, 209, 0.06)),
     rgba(7, 15, 28, 0.84);
   box-shadow: 0 30px 80px rgba(10, 18, 36, 0.46);
+  backdrop-filter: blur(12px);
 }
 
 .live-topology__core strong {
@@ -821,6 +865,15 @@ li {
     transform 220ms ease;
 }
 
+.live-node::after {
+  content: "";
+  position: absolute;
+  inset: -14px;
+  border-radius: 28px;
+  opacity: 0;
+  pointer-events: none;
+}
+
 .live-node--active {
   border-color: rgba(125, 226, 209, 0.24);
   background:
@@ -841,6 +894,19 @@ li {
   animation: none;
   transform: translate(-50%, -50%) scale(1.04);
   box-shadow: 0 28px 56px rgba(0, 0, 0, 0.38);
+}
+
+.live-node--bottleneck {
+  border-color: rgba(240, 177, 92, 0.36);
+  box-shadow:
+    0 24px 50px rgba(0, 0, 0, 0.34),
+    0 0 0 1px rgba(240, 177, 92, 0.12);
+}
+
+.live-node--bottleneck::after {
+  opacity: 1;
+  background: radial-gradient(circle, rgba(240, 177, 92, 0.18), transparent 64%);
+  animation: live-node-pressure 1.9s ease-in-out infinite;
 }
 
 .live-node__header {
@@ -882,6 +948,20 @@ li {
 .live-node__status--failed {
   background: var(--rose);
   box-shadow: 0 0 0 6px rgba(255, 142, 130, 0.12);
+}
+
+.live-node--bottleneck .live-node__status {
+  background: var(--gold);
+  box-shadow: 0 0 0 8px rgba(240, 177, 92, 0.14);
+  animation: live-node-beacon 1.35s ease-in-out infinite;
+}
+
+.live-node__pressure {
+  margin: 10px 0 0;
+  color: var(--gold);
+  font-size: 0.74rem;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
 }
 
 .live-node__summary {
@@ -958,6 +1038,40 @@ li {
 
   50% {
     transform: translate(-50%, -50%) translateY(-8px);
+  }
+}
+
+@keyframes live-link-flow {
+  from {
+    stroke-dashoffset: 0;
+  }
+
+  to {
+    stroke-dashoffset: -48;
+  }
+}
+
+@keyframes live-node-pressure {
+  0%,
+  100% {
+    transform: scale(0.98);
+    opacity: 0.22;
+  }
+
+  50% {
+    transform: scale(1.04);
+    opacity: 0.5;
+  }
+}
+
+@keyframes live-node-beacon {
+  0%,
+  100% {
+    transform: scale(1);
+  }
+
+  50% {
+    transform: scale(1.18);
   }
 }
 
