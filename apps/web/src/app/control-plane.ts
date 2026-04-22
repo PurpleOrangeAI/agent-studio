@@ -30,6 +30,38 @@ export interface ControlPlaneState {
   systemsByWorkflowId: Record<string, ControlPlaneSystemState>;
 }
 
+export interface AgentSummary {
+  agent: AgentDefinition;
+  spanCount: number;
+  failedSpanCount: number;
+  successRate: number;
+  avgDurationMs: number;
+  avgCredits: number;
+  totalCredits: number;
+  interventionCount: number;
+  activeInterventionCount: number;
+  lastActiveAt: string | null;
+  latestSpan: SpanRecord | null;
+  latestIntervention: InterventionRecord | null;
+  pressureScore: number;
+}
+
+export interface SystemSummary {
+  system: SystemDefinition;
+  latestExecution: ExecutionRecord | null;
+  latestEvaluation: EvaluationRecord | null;
+  latestRelease: ReleaseDecision | null;
+  agentCount: number;
+  executionCount: number;
+  interventionCount: number;
+  activeInterventionCount: number;
+  successRate: number;
+  avgDurationMs: number;
+  avgCredits: number;
+  lastActiveAt: string | null;
+  pressureAgentId: string | null;
+}
+
 export interface LoadControlPlaneStateOptions {
   apiBaseUrl?: string;
   fetch?: typeof globalThis.fetch;
@@ -89,6 +121,137 @@ export function getMetricDelta(evaluation: EvaluationRecord | null | undefined, 
   }
 
   return evaluation.metricDeltas.find((item) => item.metric === metric) ?? null;
+}
+
+export function getWorkflowIdForSystem(systemState: ControlPlaneSystemState | null | undefined) {
+  const metadata = systemState?.system.metadata;
+  if (!metadata || typeof metadata !== 'object' || Array.isArray(metadata)) {
+    return null;
+  }
+
+  const workflowId = (metadata as Record<string, unknown>).workflowId;
+
+  return typeof workflowId === 'string' && workflowId.trim().length > 0 ? workflowId : null;
+}
+
+function compareByNewest(left?: string, right?: string) {
+  if (left && right) {
+    return new Date(right).getTime() - new Date(left).getTime();
+  }
+
+  if (right) {
+    return 1;
+  }
+
+  if (left) {
+    return -1;
+  }
+
+  return 0;
+}
+
+function computeAverage(values: number[]) {
+  if (!values.length) {
+    return 0;
+  }
+
+  return values.reduce((total, value) => total + value, 0) / values.length;
+}
+
+export function summarizeAgent(systemState: ControlPlaneSystemState | null | undefined, agentId: string): AgentSummary | null {
+  if (!systemState) {
+    return null;
+  }
+
+  const agent = systemState.agents.find((item) => item.agentId === agentId);
+  if (!agent) {
+    return null;
+  }
+
+  const spans = Object.values(systemState.executionSpans)
+    .flat()
+    .filter((span) => span.agentId === agentId)
+    .sort((left, right) => compareByNewest(left.finishedAt ?? left.startedAt, right.finishedAt ?? right.startedAt));
+  const interventions = systemState.interventions
+    .filter((intervention) => intervention.targetScopeType === 'agent' && intervention.targetScopeId === agentId)
+    .sort((left, right) => compareByNewest(left.appliedAt ?? left.requestedAt, right.appliedAt ?? right.requestedAt));
+  const durationValues = spans.map((span) => span.usage?.durationMs).filter((value): value is number => value != null);
+  const creditValues = spans.map((span) => span.usage?.credits).filter((value): value is number => value != null);
+  const failedSpanCount = spans.filter((span) => span.status === 'failed').length;
+  const successRate = spans.length ? (spans.length - failedSpanCount) / spans.length : 1;
+  const avgDurationMs = computeAverage(durationValues);
+  const avgCredits = computeAverage(creditValues);
+  const totalCredits = creditValues.reduce((total, value) => total + value, 0);
+  const activeInterventionCount = interventions.filter((intervention) => intervention.status === 'applied').length;
+  const pressureScore = failedSpanCount * 4 + activeInterventionCount * 2 + Math.round(avgDurationMs / 1000);
+
+  return {
+    agent,
+    spanCount: spans.length,
+    failedSpanCount,
+    successRate,
+    avgDurationMs,
+    avgCredits,
+    totalCredits,
+    interventionCount: interventions.length,
+    activeInterventionCount,
+    lastActiveAt: spans[0]?.finishedAt ?? spans[0]?.startedAt ?? null,
+    latestSpan: spans[0] ?? null,
+    latestIntervention: interventions[0] ?? null,
+    pressureScore,
+  };
+}
+
+export function summarizeAgents(systemState: ControlPlaneSystemState | null | undefined): AgentSummary[] {
+  if (!systemState) {
+    return [];
+  }
+
+  return systemState.agents
+    .map((agent) => summarizeAgent(systemState, agent.agentId))
+    .filter((summary): summary is AgentSummary => summary != null)
+    .sort((left, right) => right.pressureScore - left.pressureScore || compareByNewest(left.lastActiveAt ?? undefined, right.lastActiveAt ?? undefined));
+}
+
+export function summarizeSystem(systemState: ControlPlaneSystemState | null | undefined): SystemSummary | null {
+  if (!systemState) {
+    return null;
+  }
+
+  const sortedExecutions = [...systemState.executions].sort((left, right) =>
+    compareByNewest(left.finishedAt ?? left.startedAt, right.finishedAt ?? right.startedAt),
+  );
+  const executionMetrics = Object.values(systemState.executionMetrics).flat();
+  const durationSamples = executionMetrics.filter((sample) => sample.metric === 'duration.ms' && sample.scopeType === 'execution');
+  const creditSamples = executionMetrics.filter((sample) => sample.metric === 'credits.actual' && sample.scopeType === 'execution');
+  const agentSummaries = summarizeAgents(systemState);
+
+  return {
+    system: systemState.system,
+    latestExecution: sortedExecutions[0] ?? null,
+    latestEvaluation: getLatestEvaluation(systemState),
+    latestRelease: getLatestReleaseDecision(systemState),
+    agentCount: systemState.agents.length,
+    executionCount: systemState.executions.length,
+    interventionCount: systemState.interventions.length,
+    activeInterventionCount: systemState.interventions.filter((intervention) => intervention.status === 'applied').length,
+    successRate: sortedExecutions.length
+      ? sortedExecutions.filter((execution) => execution.status === 'succeeded').length / sortedExecutions.length
+      : 1,
+    avgDurationMs: computeAverage(durationSamples.map((sample) => sample.value)),
+    avgCredits: computeAverage(creditSamples.map((sample) => sample.value)),
+    lastActiveAt: sortedExecutions[0]?.finishedAt ?? sortedExecutions[0]?.startedAt ?? null,
+    pressureAgentId: agentSummaries[0]?.agent.agentId ?? null,
+  };
+}
+
+export function sortSystemsByActivity(systems: ControlPlaneSystemState[]): ControlPlaneSystemState[] {
+  return [...systems].sort((left, right) => {
+    const leftSummary = summarizeSystem(left);
+    const rightSummary = summarizeSystem(right);
+
+    return compareByNewest(leftSummary?.lastActiveAt ?? undefined, rightSummary?.lastActiveAt ?? undefined);
+  });
 }
 
 function buildApiUrl(apiBaseUrl: string, pathname: string) {

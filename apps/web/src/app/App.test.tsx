@@ -218,9 +218,14 @@ vi.mock('./demo', () => ({
   loadDemoState: loadDemoStateMock,
 }));
 
-vi.mock('./control-plane', () => ({
-  loadControlPlaneState: loadControlPlaneStateMock,
-}));
+vi.mock('./control-plane', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('./control-plane')>();
+
+  return {
+    ...actual,
+    loadControlPlaneState: loadControlPlaneStateMock,
+  };
+});
 
 describe('App shell', () => {
   beforeEach(() => {
@@ -237,14 +242,15 @@ describe('App shell', () => {
     render(<App />);
 
     expect(await screen.findByLabelText(/^runtime$/i)).toHaveValue('demo');
+    expect(screen.getByLabelText(/^system$/i)).toHaveDisplayValue(/weekly operations brief/i);
     expect(screen.getByRole('heading', { level: 1, name: /agent studio/i })).toBeInTheDocument();
-    expect(screen.getByLabelText(/^workflow$/i)).toHaveDisplayValue(/weekly operations brief/i);
+    expect(screen.getByRole('heading', { level: 2, name: /registered systems/i })).toBeInTheDocument();
     expect(screen.getByRole('heading', { level: 2, name: /^live, replay, optimize$/i })).toBeInTheDocument();
-    expect(screen.getByRole('heading', { name: /how agent studio works/i })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: /connect your own multi-agent system/i })).toBeInTheDocument();
     expect(screen.getByRole('tab', { name: /^live$/i })).toBeInTheDocument();
     expect(screen.getByRole('tab', { name: /^replay$/i })).toBeInTheDocument();
     expect(screen.getByRole('tab', { name: /^optimize$/i })).toBeInTheDocument();
-    expect(screen.getByRole('heading', { level: 3, name: /weekly operations brief/i })).toBeInTheDocument();
+    expect(screen.getAllByRole('heading', { level: 3, name: /weekly operations brief/i }).length).toBeGreaterThan(0);
     expect(screen.getAllByText(/guardrailed candidate/i).length).toBeGreaterThan(0);
     expect(screen.getByText(/promoted the tighter fan-out plan/i)).toBeInTheDocument();
   });

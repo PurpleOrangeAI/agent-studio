@@ -11,6 +11,16 @@ import { OptimizeAdvancedPanel } from '../features/optimize/OptimizeAdvancedPane
 import { OptimizePanel } from '../features/optimize/OptimizePanel';
 import { ReplayAdvancedPanel } from '../features/replay/ReplayAdvancedPanel';
 import { ReplayPanel } from '../features/replay/ReplayPanel';
+import { AgentDetailPanel } from '../features/system/AgentDetailPanel';
+import { AgentFleetPanel } from '../features/system/AgentFleetPanel';
+import { SystemCatalogPanel } from '../features/system/SystemCatalogPanel';
+import { SystemPerformancePanel } from '../features/system/SystemPerformancePanel';
+import {
+  getAgentLabel,
+  getWorkflowIdForSystem,
+  sortSystemsByActivity,
+  summarizeSystem,
+} from './control-plane';
 
 type RoomId = 'live' | 'replay' | 'optimize';
 
@@ -128,6 +138,8 @@ export function App() {
   const [demoState, setDemoState] = useState<DemoState | null>(null);
   const [controlPlaneState, setControlPlaneState] = useState<ControlPlaneState | null>(null);
   const [runtimeId, setRuntimeId] = useState<string>('demo');
+  const [systemId, setSystemId] = useState<string>('');
+  const [selectedAgentId, setSelectedAgentId] = useState<string>('');
   const [workflowId, setWorkflowId] = useState<string>('');
   const [selectedRoom, setSelectedRoom] = useState<RoomId>('live');
   const [showOnboarding, setShowOnboarding] = useState(getInitialOnboardingState);
@@ -153,10 +165,19 @@ export function App() {
         }
 
         startTransition(() => {
+          const initialSystem =
+            controlPlaneResult.status === 'fulfilled'
+              ? controlPlaneResult.value.systemsByWorkflowId[demoResult.value.defaultWorkflowId] ??
+                sortSystemsByActivity(controlPlaneResult.value.systems)[0] ??
+                null
+              : null;
           setDemoState(demoResult.value);
           setRuntimeId(demoResult.value.runtimeOptions[0]?.id ?? 'demo');
-          setWorkflowId((current) =>
-            current && demoResult.value.workflowStates[current] ? current : demoResult.value.defaultWorkflowId,
+          setSystemId(initialSystem?.system.systemId ?? '');
+          setSelectedAgentId(initialSystem?.agents[0]?.agentId ?? '');
+          setWorkflowId(
+            getWorkflowIdForSystem(initialSystem) ??
+              demoResult.value.defaultWorkflowId,
           );
           setControlPlaneState(controlPlaneResult.status === 'fulfilled' ? controlPlaneResult.value : null);
           setLoadError(null);
@@ -167,6 +188,51 @@ export function App() {
       cancelled = true;
     };
   }, []);
+
+  const sortedSystems = controlPlaneState ? sortSystemsByActivity(controlPlaneState.systems) : [];
+  const selectedSystemState =
+    sortedSystems.find((systemState) => systemState.system.systemId === systemId) ??
+    controlPlaneState?.systemsByWorkflowId[workflowId] ??
+    sortedSystems[0] ??
+    null;
+  const effectiveWorkflowId = getWorkflowIdForSystem(selectedSystemState) ?? workflowId;
+  const selectedWorkflowState =
+    demoState && effectiveWorkflowId
+      ? demoState.workflowStates[effectiveWorkflowId] ?? demoState.workflowStates[demoState.defaultWorkflowId]
+      : null;
+  const workflow = selectedWorkflowState?.workflow ?? null;
+  const liveRun = selectedWorkflowState?.live.run ?? null;
+  const replayRun = selectedWorkflowState?.replay.run ?? null;
+  const failedReplayStep =
+    selectedWorkflowState?.replay.replay.stepExecutions.find((step) => step.status === 'failed') ??
+    selectedWorkflowState?.replay.replay.stepExecutions[0] ??
+    null;
+  const candidateRun = selectedWorkflowState?.optimize.candidateRun ?? null;
+  const candidateCreditsDelta =
+    candidateRun != null
+      ? (candidateRun.actualCredits ?? 0) - (selectedWorkflowState?.optimize.baselineRun.actualCredits ?? 0)
+      : 0;
+  const candidateDurationDeltaSeconds =
+    candidateRun != null
+      ? Math.round(((candidateRun.durationMs ?? 0) - (selectedWorkflowState?.optimize.baselineRun.durationMs ?? 0)) / 1000)
+      : 0;
+  const selectedRuntime = demoState?.runtimeOptions.find((option) => option.id === runtimeId) ?? null;
+  const selectedControlPlaneSystem = selectedSystemState ?? (workflow ? controlPlaneState?.systemsByWorkflowId[workflow.workflowId] ?? null : null);
+  const selectedSystemSummary = summarizeSystem(selectedControlPlaneSystem);
+  const pressureAgentLabel = getAgentLabel(selectedControlPlaneSystem, selectedSystemSummary?.pressureAgentId ?? undefined);
+
+  useEffect(() => {
+    if (!selectedControlPlaneSystem?.agents.length) {
+      return;
+    }
+
+    const hasSelectedAgent = selectedControlPlaneSystem.agents.some((agent) => agent.agentId === selectedAgentId);
+    if (hasSelectedAgent) {
+      return;
+    }
+
+    setSelectedAgentId(selectedSystemSummary?.pressureAgentId ?? selectedControlPlaneSystem.agents[0]?.agentId ?? '');
+  }, [selectedAgentId, selectedControlPlaneSystem, selectedSystemSummary?.pressureAgentId]);
 
   if (loadError) {
     return (
@@ -187,7 +253,7 @@ export function App() {
     );
   }
 
-  if (!demoState || !workflowId) {
+  if (!demoState || !selectedWorkflowState || !workflow || !liveRun || !replayRun || !candidateRun) {
     return (
       <main className="app-shell">
         <div className="app-shell__backdrop" />
@@ -206,21 +272,15 @@ export function App() {
     );
   }
 
-  const selectedWorkflowState =
-    demoState.workflowStates[workflowId] ?? demoState.workflowStates[demoState.defaultWorkflowId];
-  const workflow = selectedWorkflowState.workflow;
-  const liveRun = selectedWorkflowState.live.run;
-  const replayRun = selectedWorkflowState.replay.run;
-  const failedReplayStep =
-    selectedWorkflowState.replay.replay.stepExecutions.find((step) => step.status === 'failed') ??
-    selectedWorkflowState.replay.replay.stepExecutions[0];
-  const candidateRun = selectedWorkflowState.optimize.candidateRun;
-  const candidateCreditsDelta = (candidateRun.actualCredits ?? 0) - (selectedWorkflowState.optimize.baselineRun.actualCredits ?? 0);
-  const candidateDurationDeltaSeconds = Math.round(
-    ((candidateRun.durationMs ?? 0) - (selectedWorkflowState.optimize.baselineRun.durationMs ?? 0)) / 1000,
-  );
-  const selectedRuntime = demoState.runtimeOptions.find((option) => option.id === runtimeId);
-  const selectedControlPlaneSystem = controlPlaneState?.systemsByWorkflowId[workflow.workflowId] ?? null;
+  function handleSystemChange(nextSystemId: string) {
+    setSystemId(nextSystemId);
+    const nextSystem = sortedSystems.find((systemState) => systemState.system.systemId === nextSystemId) ?? null;
+    setSelectedAgentId(nextSystem?.agents[0]?.agentId ?? '');
+    const nextWorkflowId = getWorkflowIdForSystem(nextSystem);
+    if (nextWorkflowId) {
+      setWorkflowId(nextWorkflowId);
+    }
+  }
 
   const controlLoopCue: ControlLoopCue =
     selectedRoom === 'live'
@@ -279,19 +339,22 @@ export function App() {
             <p className="eyebrow">Public demo</p>
             <h1>Agent Studio</h1>
             <p className="hero__lede">
-              A seeded control room for agent workflows. The shell should tell you what state the system is in, what
-              changed, and whether the next candidate deserves to ship.
+              A seeded control room for bring-your-own multi-agent systems. The shell should start from the system,
+              expose agent pressure fast, and make the next intervention or release call obvious.
             </p>
             <div className="hero__current-state">
               <div className="hero__state-copy">
                 <span className="hero__state-label">Current state</span>
-                <strong>{workflow.name}</strong>
-                <p>{workflow.description}</p>
+                <strong>{selectedControlPlaneSystem?.system.name ?? workflow.name}</strong>
+                <p>{selectedControlPlaneSystem?.system.description ?? workflow.description}</p>
               </div>
               <div className="hero__state-line">
-                <span className={`status-pill status-pill--${liveRun.status}`}>{titleCaseStatus(liveRun.status)}</span>
-                <span className="meta-chip">Replay focus: {failedReplayStep?.title ?? 'Healthy control'}</span>
-                <span className="meta-chip">Candidate: {candidateRun.experimentLabel}</span>
+                <span className={`status-pill status-pill--${selectedSystemSummary?.latestExecution?.status ?? liveRun.status}`}>
+                  {titleCaseStatus(selectedSystemSummary?.latestExecution?.status ?? liveRun.status)}
+                </span>
+                <span className="meta-chip">{selectedSystemSummary?.agentCount ?? 0} agents</span>
+                <span className="meta-chip">{selectedSystemSummary?.executionCount ?? 0} executions</span>
+                <span className="meta-chip">Pressure: {pressureAgentLabel ?? failedReplayStep?.title ?? 'Healthy control'}</span>
               </div>
             </div>
           </div>
@@ -300,9 +363,9 @@ export function App() {
               <div className="hero__controls-header">
                 <div>
                   <p className="eyebrow">Command surface</p>
-                  <h2>Runtime and workflow</h2>
+                  <h2>Runtime and system</h2>
                 </div>
-                <span className="meta-chip">Demo operator view</span>
+                <span className="meta-chip">System-first operator view</span>
               </div>
               <label className="select-field">
                 <span>Runtime</span>
@@ -315,32 +378,50 @@ export function App() {
                 </select>
                 <small>{selectedRuntime?.detail}</small>
               </label>
-              <label className="select-field">
-                <span>Workflow</span>
-                <select aria-label="Workflow" value={workflowId} onChange={(event) => setWorkflowId(event.target.value)}>
-                  {demoState.workflows.map((option) => (
-                    <option key={option.workflowId} value={option.workflowId}>
-                      {option.name}
-                    </option>
-                  ))}
-                </select>
-                <small>{workflow.description}</small>
-              </label>
+              {sortedSystems.length ? (
+                <label className="select-field">
+                  <span>System</span>
+                  <select
+                    aria-label="System"
+                    value={selectedControlPlaneSystem?.system.systemId ?? ''}
+                    onChange={(event) => handleSystemChange(event.target.value)}
+                  >
+                    {sortedSystems.map((systemState) => (
+                      <option key={systemState.system.systemId} value={systemState.system.systemId}>
+                        {systemState.system.name}
+                      </option>
+                    ))}
+                  </select>
+                  <small>{selectedControlPlaneSystem?.system.description ?? workflow.description}</small>
+                </label>
+              ) : (
+                <label className="select-field">
+                  <span>Workflow</span>
+                  <select aria-label="Workflow" value={workflowId} onChange={(event) => setWorkflowId(event.target.value)}>
+                    {demoState.workflows.map((option) => (
+                      <option key={option.workflowId} value={option.workflowId}>
+                        {option.name}
+                      </option>
+                    ))}
+                  </select>
+                  <small>{workflow.description}</small>
+                </label>
+              )}
             </div>
             <div className="hero__status-grid">
               <article className="hero-signal hero-signal--live">
                 <span className="hero-signal__label">Live posture</span>
-                <strong>{titleCaseStatus(liveRun.status)}</strong>
-                <p>{liveRun.experimentLabel}</p>
+                <strong>{titleCaseStatus(selectedSystemSummary?.latestExecution?.status ?? liveRun.status)}</strong>
+                <p>{selectedControlPlaneSystem?.system.name ?? liveRun.experimentLabel}</p>
                 <div className="hero-signal__meta">
-                  <span>{formatCredits(liveRun.actualCredits)}</span>
-                  <span>{formatDuration(liveRun.durationMs)}</span>
+                  <span>{formatCredits(selectedSystemSummary?.avgCredits ?? liveRun.actualCredits)}</span>
+                  <span>{formatDuration(selectedSystemSummary?.avgDurationMs ?? liveRun.durationMs)}</span>
                 </div>
               </article>
               <article className="hero-signal hero-signal--replay">
                 <span className="hero-signal__label">Replay pressure</span>
-                <strong>{failedReplayStep?.title ?? 'No failing step'}</strong>
-                <p>{failedReplayStep?.error ?? failedReplayStep?.summary ?? 'The latest run is healthy.'}</p>
+                <strong>{pressureAgentLabel ?? failedReplayStep?.title ?? 'No failing step'}</strong>
+                <p>{failedReplayStep?.error ?? failedReplayStep?.summary ?? 'No active pressure point is recorded in the current system.'}</p>
                 <div className="hero-signal__meta">
                   <span>{titleCaseStatus(replayRun.status)}</span>
                   <span>{formatCredits(replayRun.actualCredits)}</span>
@@ -359,7 +440,35 @@ export function App() {
           </div>
         </header>
 
-        {showOnboarding ? <OnboardingPanel onDismiss={dismissOnboarding} /> : null}
+        {showOnboarding ? (
+          <OnboardingPanel
+            onDismiss={dismissOnboarding}
+            controlPlaneState={controlPlaneState}
+            systemState={selectedControlPlaneSystem}
+            runtimeLabel={selectedRuntime?.label ?? null}
+          />
+        ) : null}
+
+        {sortedSystems.length ? (
+          <SystemCatalogPanel
+            systems={sortedSystems}
+            selectedSystemId={selectedControlPlaneSystem?.system.systemId ?? null}
+            onSelectSystem={handleSystemChange}
+          />
+        ) : null}
+
+        {selectedControlPlaneSystem ? (
+          <section className="system-layout">
+            <AgentFleetPanel
+              systemState={selectedControlPlaneSystem}
+              selectedAgentId={selectedAgentId || null}
+              onSelectAgent={setSelectedAgentId}
+            />
+            <AgentDetailPanel systemState={selectedControlPlaneSystem} agentId={selectedAgentId || null} />
+          </section>
+        ) : null}
+
+        {selectedControlPlaneSystem ? <SystemPerformancePanel systemState={selectedControlPlaneSystem} /> : null}
 
         <section className="surface overview-panel">
           <div className="section-header">
