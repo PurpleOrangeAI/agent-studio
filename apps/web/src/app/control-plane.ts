@@ -85,6 +85,33 @@ export interface SystemSummary {
   pressureAgentId: string | null;
 }
 
+export interface SystemHistoryEvent {
+  eventId: string;
+  kind: 'execution' | 'directive' | 'evaluation' | 'release';
+  occurredAt: string;
+  status: string;
+  title: string;
+  summary: string;
+  relatedAgentId: string | null;
+  relatedExecutionId: string | null;
+}
+
+export interface FleetAnalyticsSummary {
+  executionStatusCounts: {
+    running: number;
+    succeeded: number;
+    failed: number;
+  };
+  totalSpans: number;
+  failedSpans: number;
+  activeDirectives: number;
+  recentEventCount24h: number;
+  recentEventCount7d: number;
+  latestEventAt: string | null;
+  hottestAgents: AgentSummary[];
+  recentFailures: SystemHistoryEvent[];
+}
+
 export interface LoadControlPlaneStateOptions {
   apiBaseUrl?: string;
   fetch?: typeof globalThis.fetch;
@@ -760,6 +787,14 @@ function computeAverage(values: number[]) {
   return values.reduce((total, value) => total + value, 0) / values.length;
 }
 
+function isWithinWindow(timestamp: string | null | undefined, windowMs: number) {
+  if (!timestamp) {
+    return false;
+  }
+
+  return Date.now() - new Date(timestamp).getTime() <= windowMs;
+}
+
 export function summarizeAgent(systemState: ControlPlaneSystemState | null | undefined, agentId: string): AgentSummary | null {
   if (!systemState) {
     return null;
@@ -854,6 +889,104 @@ export function sortSystemsByActivity(systems: ControlPlaneSystemState[]): Contr
 
     return compareByNewest(leftSummary?.lastActiveAt ?? undefined, rightSummary?.lastActiveAt ?? undefined);
   });
+}
+
+export function buildSystemHistoryEvents(systemState: ControlPlaneSystemState | null | undefined): SystemHistoryEvent[] {
+  if (!systemState) {
+    return [];
+  }
+
+  const executionEvents = systemState.executions.map((execution) => {
+    const metrics = systemState.executionMetrics[execution.executionId] ?? [];
+    const credits = readMetricValue(metrics, 'credits.actual');
+    const durationMs = readMetricValue(metrics, 'duration.ms');
+    const experimentLabel =
+      readMetadataString(execution.metadata, 'experimentLabel') ??
+      readMetadataString(execution.metadata, 'label') ??
+      execution.runId ??
+      execution.executionId;
+
+    return {
+      eventId: execution.executionId,
+      kind: 'execution' as const,
+      occurredAt: execution.finishedAt ?? execution.startedAt,
+      status: execution.status,
+      title: `${formatTokenLabel(execution.status)} execution · ${experimentLabel}`,
+      summary: `${systemState.system.name} consumed ${credits?.toFixed(0) ?? '—'} credits over ${durationMs ? Math.round(durationMs / 1000) : '0'}s.`,
+      relatedAgentId: null,
+      relatedExecutionId: execution.executionId,
+    };
+  });
+
+  const directiveEvents = systemState.interventions.map((intervention) => ({
+    eventId: intervention.interventionId,
+    kind: 'directive' as const,
+    occurredAt: intervention.appliedAt ?? intervention.requestedAt,
+    status: intervention.status ?? 'recorded',
+    title: `${formatTokenLabel(intervention.action.replace(/\./g, ' '))} · ${
+      intervention.targetScopeType === 'agent'
+        ? getAgentLabel(systemState, intervention.targetScopeId) ?? intervention.targetScopeId
+        : systemState.system.name
+    }`,
+    summary: intervention.reason ?? 'Directive intervention recorded without a written reason.',
+    relatedAgentId: intervention.targetScopeType === 'agent' ? intervention.targetScopeId : null,
+    relatedExecutionId: null,
+  }));
+
+  const evaluationEvents = systemState.evaluations.map((evaluation) => ({
+    eventId: evaluation.evaluationId,
+    kind: 'evaluation' as const,
+    occurredAt: evaluation.createdAt,
+    status: evaluation.verdict,
+    title: `Evaluation · ${formatTokenLabel(evaluation.verdict)}`,
+    summary: evaluation.summary ?? 'Evaluation recorded without a summary.',
+    relatedAgentId: null,
+    relatedExecutionId: evaluation.candidateRefs?.[0] ?? null,
+  }));
+
+  const releaseEvents = systemState.releases.map((release) => ({
+    eventId: release.releaseId,
+    kind: 'release' as const,
+    occurredAt: release.appliedAt ?? release.requestedAt,
+    status: release.decision,
+    title: `Release · ${formatTokenLabel(release.decision)}`,
+    summary: release.summary ?? 'Release decision recorded without a summary.',
+    relatedAgentId: null,
+    relatedExecutionId: release.candidateRef ?? null,
+  }));
+
+  return [...executionEvents, ...directiveEvents, ...evaluationEvents, ...releaseEvents].sort((left, right) =>
+    compareByNewest(left.occurredAt, right.occurredAt),
+  );
+}
+
+export function summarizeFleetAnalytics(systemState: ControlPlaneSystemState | null | undefined): FleetAnalyticsSummary | null {
+  if (!systemState) {
+    return null;
+  }
+
+  const spans = Object.values(systemState.executionSpans).flat();
+  const history = buildSystemHistoryEvents(systemState);
+  const hottestAgents = summarizeAgents(systemState).slice(0, 3);
+  const recentFailures = history.filter((event) =>
+    ['failed', 'hold', 'rollback'].includes(event.status),
+  );
+
+  return {
+    executionStatusCounts: {
+      running: systemState.executions.filter((execution) => execution.status === 'running').length,
+      succeeded: systemState.executions.filter((execution) => execution.status === 'succeeded').length,
+      failed: systemState.executions.filter((execution) => execution.status === 'failed').length,
+    },
+    totalSpans: spans.length,
+    failedSpans: spans.filter((span) => span.status === 'failed').length,
+    activeDirectives: systemState.interventions.filter((intervention) => intervention.status === 'applied').length,
+    recentEventCount24h: history.filter((event) => isWithinWindow(event.occurredAt, 24 * 60 * 60 * 1000)).length,
+    recentEventCount7d: history.filter((event) => isWithinWindow(event.occurredAt, 7 * 24 * 60 * 60 * 1000)).length,
+    latestEventAt: history[0]?.occurredAt ?? null,
+    hottestAgents,
+    recentFailures: recentFailures.slice(0, 4),
+  };
 }
 
 function buildApiUrl(apiBaseUrl: string, pathname: string) {

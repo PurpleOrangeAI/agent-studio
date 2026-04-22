@@ -3,7 +3,9 @@ import { getAgentLabel, summarizeSystem, type ControlPlaneStorageInfo, type Cont
 import { formatCredits, formatDuration, titleCaseStatus } from '../../app/format';
 import { AgentDetailPanel } from './AgentDetailPanel';
 import { AgentFleetPanel } from './AgentFleetPanel';
+import { FleetAnalyticsPanel } from './FleetAnalyticsPanel';
 import { SystemCatalogPanel } from './SystemCatalogPanel';
+import { SystemHistoryPanel } from './SystemHistoryPanel';
 import { SystemPerformancePanel } from './SystemPerformancePanel';
 
 interface SystemOverviewRouteProps {
@@ -63,6 +65,8 @@ export function SystemOverviewRoute({
         ) : null}
 
         {selectedSystem ? <SystemPerformancePanel systemState={selectedSystem} storage={storage} /> : null}
+        {selectedSystem ? <FleetAnalyticsPanel systemState={selectedSystem} /> : null}
+        {selectedSystem ? <SystemHistoryPanel systemState={selectedSystem} /> : null}
 
         <section className="surface overview-panel">
           <div className="section-header">
@@ -178,6 +182,8 @@ export function SystemOverviewRoute({
       ) : null}
 
       {selectedSystem ? <SystemPerformancePanel systemState={selectedSystem} storage={storage} /> : null}
+      {selectedSystem ? <FleetAnalyticsPanel systemState={selectedSystem} /> : null}
+      {selectedSystem ? <SystemHistoryPanel systemState={selectedSystem} /> : null}
 
       <section className="surface overview-panel">
         <div className="section-header">

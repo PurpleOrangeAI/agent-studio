@@ -529,4 +529,43 @@ describe('App shell', () => {
     expect(screen.getByText(/this topology now reads the control-plane model directly/i)).toBeInTheDocument();
     expect(screen.queryByText(/no seeded room projection/i)).not.toBeInTheDocument();
   });
+
+  it('renders fleet analytics and recent history for an imported system overview', async () => {
+    window.history.pushState({}, '', '/systems/system_imported');
+    loadControlPlaneStateMock.mockResolvedValue({
+      ...controlPlaneFixture,
+      runtimes: [
+        ...controlPlaneFixture.runtimes,
+        {
+          runtimeId: 'runtime_imported',
+          kind: 'custom',
+          adapterId: 'custom-ingest',
+          label: 'Imported runtime',
+        },
+      ],
+      systems: [controlPlaneFixture.systems[0], importedSystemState],
+      systemsByWorkflowId: {
+        workflow_ops_brief: controlPlaneFixture.systems[0],
+      },
+      storage: {
+        mode: 'blob',
+        persistenceEnabled: true,
+        filePath: null,
+        blobPath: 'control-plane/store.json',
+        detail: 'Persistent hosted Vercel Blob store for public imports, fleet history, and control-plane state.',
+      },
+    });
+
+    render(<App />);
+
+    expect(await screen.findByLabelText(/^runtime$/i)).toHaveValue('runtime_imported');
+    expect(screen.getByText(/fleet analytics/i)).toBeInTheDocument();
+    expect(
+      screen.getByRole('heading', { level: 2, name: /pressure, failures, and recent activity/i }),
+    ).toBeInTheDocument();
+    expect(screen.getByRole('heading', { level: 2, name: /what changed in this system/i })).toBeInTheDocument();
+    expect(screen.getByText(/recent failures and holds/i)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /releases/i })).toBeInTheDocument();
+    expect(screen.getByText(/history persistent/i)).toBeInTheDocument();
+  });
 });
