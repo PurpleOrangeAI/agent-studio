@@ -12,6 +12,14 @@
     {
       "source": "/api/(.*)",
       "destination": "/api/router?path=$1"
+    },
+    {
+      "source": "/connect",
+      "destination": "/"
+    },
+    {
+      "source": "/systems/(.*)",
+      "destination": "/"
     }
   ]
 }

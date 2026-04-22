@@ -241,7 +241,7 @@ describe('App shell', () => {
   it('renders the seeded demo control loop', async () => {
     render(<App />);
 
-    expect(await screen.findByLabelText(/^runtime$/i)).toHaveValue('demo');
+    expect(await screen.findByLabelText(/^runtime$/i)).toHaveValue('runtime_demo_seeded');
     expect(screen.getByLabelText(/^system$/i)).toHaveDisplayValue(/weekly operations brief/i);
     expect(screen.getByRole('heading', { level: 1, name: /agent studio/i })).toBeInTheDocument();
     expect(screen.getByRole('heading', { level: 2, name: /registered systems/i })).toBeInTheDocument();

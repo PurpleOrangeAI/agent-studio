@@ -67,6 +67,24 @@ export interface LoadControlPlaneStateOptions {
   fetch?: typeof globalThis.fetch;
 }
 
+export interface IngestControlPlaneOptions {
+  apiBaseUrl?: string;
+  fetch?: typeof globalThis.fetch;
+}
+
+export interface ControlPlaneImportBundle {
+  runtimes?: RuntimeRegistration[];
+  systems?: SystemDefinition[];
+  agents?: AgentDefinition[];
+  topologies?: TopologySnapshot[];
+  executions?: ExecutionRecord[];
+  spans?: SpanRecord[];
+  metrics?: MetricSample[];
+  interventions?: InterventionRecord[];
+  evaluations?: EvaluationRecord[];
+  releases?: ReleaseDecision[];
+}
+
 export function getExecutionForRun(systemState: ControlPlaneSystemState | null | undefined, runId: string) {
   if (!systemState) {
     return null;
@@ -276,6 +294,29 @@ async function fetchJson<T>(fetcher: typeof globalThis.fetch, apiBaseUrl: string
   return (await response.json()) as T;
 }
 
+async function postJson<TInput, TOutput>(
+  fetcher: typeof globalThis.fetch,
+  apiBaseUrl: string,
+  pathname: string,
+  payload: TInput,
+): Promise<TOutput> {
+  const response = await fetcher(buildApiUrl(apiBaseUrl, pathname), {
+    method: 'POST',
+    headers: {
+      accept: 'application/json',
+      'content-type': 'application/json',
+    },
+    body: JSON.stringify(payload),
+  });
+
+  if (!response.ok) {
+    const message = await response.text().catch(() => '');
+    throw new Error(message || `Failed to POST ${pathname} (${response.status}).`);
+  }
+
+  return (await response.json()) as TOutput;
+}
+
 function readWorkflowId(system: SystemDefinition) {
   const metadata = system.metadata;
   if (!metadata || typeof metadata !== 'object' || Array.isArray(metadata)) {
@@ -351,4 +392,45 @@ export async function loadControlPlaneState(options: LoadControlPlaneStateOption
     systems,
     systemsByWorkflowId,
   };
+}
+
+export async function ingestControlPlaneItems<T>(
+  pathname: string,
+  payload: T | T[],
+  options: IngestControlPlaneOptions = {},
+): Promise<void> {
+  const fetcher = options.fetch ?? globalThis.fetch;
+  if (!fetcher) {
+    throw new Error('Fetch is not available in this environment.');
+  }
+
+  const apiBaseUrl = options.apiBaseUrl ?? import.meta.env.VITE_API_URL ?? '';
+
+  await postJson(fetcher, apiBaseUrl, pathname, payload);
+}
+
+export async function ingestControlPlaneBundle(
+  bundle: ControlPlaneImportBundle,
+  options: IngestControlPlaneOptions = {},
+): Promise<void> {
+  const orderedWrites: Array<[string, unknown[] | undefined]> = [
+    ['/api/control/ingest/runtimes', bundle.runtimes],
+    ['/api/control/ingest/systems', bundle.systems],
+    ['/api/control/ingest/agents', bundle.agents],
+    ['/api/control/ingest/topologies', bundle.topologies],
+    ['/api/control/ingest/executions', bundle.executions],
+    ['/api/control/ingest/spans', bundle.spans],
+    ['/api/control/ingest/metrics', bundle.metrics],
+    ['/api/control/ingest/interventions', bundle.interventions],
+    ['/api/control/ingest/evaluations', bundle.evaluations],
+    ['/api/control/ingest/releases', bundle.releases],
+  ];
+
+  for (const [pathname, items] of orderedWrites) {
+    if (!items?.length) {
+      continue;
+    }
+
+    await ingestControlPlaneItems(pathname, items, options);
+  }
 }

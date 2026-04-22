@@ -4,6 +4,8 @@ import { loadControlPlaneState, type ControlPlaneState } from './control-plane';
 import { loadDemoState, type DemoState } from './demo';
 import { formatCredits, formatDuration, titleCaseStatus } from './format';
 import { RoomShell } from './RoomShell';
+import { buildAppRoute, parseAppRoute, type AppRouteState, type ViewId } from './routes';
+import { ConnectPanel } from '../features/connect/ConnectPanel';
 import { LiveAdvancedPanel } from '../features/live/LiveAdvancedPanel';
 import { LivePanel } from '../features/live/LivePanel';
 import { OnboardingPanel } from '../features/onboarding/OnboardingPanel';
@@ -11,10 +13,7 @@ import { OptimizeAdvancedPanel } from '../features/optimize/OptimizeAdvancedPane
 import { OptimizePanel } from '../features/optimize/OptimizePanel';
 import { ReplayAdvancedPanel } from '../features/replay/ReplayAdvancedPanel';
 import { ReplayPanel } from '../features/replay/ReplayPanel';
-import { AgentDetailPanel } from '../features/system/AgentDetailPanel';
-import { AgentFleetPanel } from '../features/system/AgentFleetPanel';
-import { SystemCatalogPanel } from '../features/system/SystemCatalogPanel';
-import { SystemPerformancePanel } from '../features/system/SystemPerformancePanel';
+import { SystemOverviewRoute } from '../features/system/SystemOverviewRoute';
 import {
   getAgentLabel,
   getWorkflowIdForSystem,
@@ -34,14 +33,52 @@ type ControlLoopCue = {
   onSecondary?: () => void;
 };
 
-const ROOM_LABELS: Record<
-  RoomId,
+const ONBOARDING_STORAGE_KEY = 'agent-studio-demo-onboarding-dismissed';
+
+function getInitialRouteState(): AppRouteState {
+  if (typeof window === 'undefined') {
+    return {
+      view: 'overview',
+      systemId: null,
+    };
+  }
+
+  return parseAppRoute(window.location.pathname);
+}
+
+function getInitialOnboardingState() {
+  if (typeof window === 'undefined') {
+    return true;
+  }
+
+  try {
+    return window.localStorage.getItem(ONBOARDING_STORAGE_KEY) !== 'true';
+  } catch {
+    return true;
+  }
+}
+
+function formatTokenLabel(value: string) {
+  return value
+    .split(/[._-]+/)
+    .filter(Boolean)
+    .map((token) => token.charAt(0).toUpperCase() + token.slice(1))
+    .join(' ');
+}
+
+const VIEW_LABELS: Record<
+  ViewId,
   {
     title: string;
     summary: string;
     path: string;
   }
 > = {
+  overview: {
+    title: 'Overview',
+    summary: 'Operate the full system',
+    path: 'System',
+  },
   live: {
     title: 'Live',
     summary: 'Operate the current system',
@@ -57,24 +94,15 @@ const ROOM_LABELS: Record<
     summary: 'Test and release changes',
     path: 'Release',
   },
+  connect: {
+    title: 'Connect',
+    summary: 'Register and import systems',
+    path: 'Import',
+  },
 };
 
-const ONBOARDING_STORAGE_KEY = 'agent-studio-demo-onboarding-dismissed';
-
-function getInitialOnboardingState() {
-  if (typeof window === 'undefined') {
-    return true;
-  }
-
-  try {
-    return window.localStorage.getItem(ONBOARDING_STORAGE_KEY) !== 'true';
-  } catch {
-    return true;
-  }
-}
-
 const ROOM_COPY: Record<
-  RoomId,
+  Exclude<ViewId, 'overview' | 'connect'>,
   {
     eyebrow: string;
     title: string;
@@ -135,13 +163,14 @@ const ROOM_COPY: Record<
 };
 
 export function App() {
+  const initialRoute = getInitialRouteState();
   const [demoState, setDemoState] = useState<DemoState | null>(null);
   const [controlPlaneState, setControlPlaneState] = useState<ControlPlaneState | null>(null);
+  const [selectedView, setSelectedView] = useState<ViewId>(initialRoute.view);
   const [runtimeId, setRuntimeId] = useState<string>('demo');
-  const [systemId, setSystemId] = useState<string>('');
+  const [systemId, setSystemId] = useState<string>(initialRoute.systemId ?? '');
   const [selectedAgentId, setSelectedAgentId] = useState<string>('');
   const [workflowId, setWorkflowId] = useState<string>('');
-  const [selectedRoom, setSelectedRoom] = useState<RoomId>('live');
   const [showOnboarding, setShowOnboarding] = useState(getInitialOnboardingState);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [advancedOpen, setAdvancedOpen] = useState<Record<RoomId, boolean>>({
@@ -167,13 +196,17 @@ export function App() {
         startTransition(() => {
           const initialSystem =
             controlPlaneResult.status === 'fulfilled'
-              ? controlPlaneResult.value.systemsByWorkflowId[demoResult.value.defaultWorkflowId] ??
+              ? controlPlaneResult.value.systems.find((systemState) => systemState.system.systemId === initialRoute.systemId) ??
+                controlPlaneResult.value.systemsByWorkflowId[demoResult.value.defaultWorkflowId] ??
                 sortSystemsByActivity(controlPlaneResult.value.systems)[0] ??
                 null
               : null;
+          const initialRuntimeId =
+            initialSystem?.system.primaryRuntimeId ?? initialSystem?.system.runtimeIds[0] ?? demoResult.value.runtimeOptions[0]?.id ?? 'demo';
+
           setDemoState(demoResult.value);
-          setRuntimeId(demoResult.value.runtimeOptions[0]?.id ?? 'demo');
-          setSystemId(initialSystem?.system.systemId ?? '');
+          setRuntimeId(initialRuntimeId);
+          setSystemId(initialRoute.view === 'connect' ? '' : initialSystem?.system.systemId ?? initialRoute.systemId ?? '');
           setSelectedAgentId(initialSystem?.agents[0]?.agentId ?? '');
           setWorkflowId(
             getWorkflowIdForSystem(initialSystem) ??
@@ -189,17 +222,35 @@ export function App() {
     };
   }, []);
 
+  useEffect(() => {
+    if (typeof window === 'undefined') {
+      return;
+    }
+
+    function syncRouteFromLocation() {
+      const route = parseAppRoute(window.location.pathname);
+      setSelectedView(route.view);
+      setSystemId(route.systemId ?? '');
+    }
+
+    window.addEventListener('popstate', syncRouteFromLocation);
+
+    return () => {
+      window.removeEventListener('popstate', syncRouteFromLocation);
+    };
+  }, []);
+
   const sortedSystems = controlPlaneState ? sortSystemsByActivity(controlPlaneState.systems) : [];
   const selectedSystemState =
     sortedSystems.find((systemState) => systemState.system.systemId === systemId) ??
     controlPlaneState?.systemsByWorkflowId[workflowId] ??
     sortedSystems[0] ??
     null;
-  const effectiveWorkflowId = getWorkflowIdForSystem(selectedSystemState) ?? workflowId;
+  const selectedSystemWorkflowId = getWorkflowIdForSystem(selectedSystemState);
+  const defaultWorkflowState = demoState ? demoState.workflowStates[demoState.defaultWorkflowId] ?? null : null;
   const selectedWorkflowState =
-    demoState && effectiveWorkflowId
-      ? demoState.workflowStates[effectiveWorkflowId] ?? demoState.workflowStates[demoState.defaultWorkflowId]
-      : null;
+    demoState && selectedSystemWorkflowId ? demoState.workflowStates[selectedSystemWorkflowId] ?? null : selectedSystemState ? null : defaultWorkflowState;
+  const hasRoomProjection = Boolean(selectedWorkflowState);
   const workflow = selectedWorkflowState?.workflow ?? null;
   const liveRun = selectedWorkflowState?.live.run ?? null;
   const replayRun = selectedWorkflowState?.replay.run ?? null;
@@ -216,10 +267,57 @@ export function App() {
     candidateRun != null
       ? Math.round(((candidateRun.durationMs ?? 0) - (selectedWorkflowState?.optimize.baselineRun.durationMs ?? 0)) / 1000)
       : 0;
-  const selectedRuntime = demoState?.runtimeOptions.find((option) => option.id === runtimeId) ?? null;
+  const runtimeOptions =
+    controlPlaneState?.runtimes.length
+      ? controlPlaneState.runtimes.map((runtime) => ({
+          id: runtime.runtimeId,
+          label: runtime.label,
+          detail: `${formatTokenLabel(runtime.kind)} runtime · ${runtime.adapterId}`,
+        }))
+      : demoState?.runtimeOptions ?? [];
+  const selectedRuntime = runtimeOptions.find((option) => option.id === runtimeId) ?? null;
   const selectedControlPlaneSystem = selectedSystemState ?? (workflow ? controlPlaneState?.systemsByWorkflowId[workflow.workflowId] ?? null : null);
   const selectedSystemSummary = summarizeSystem(selectedControlPlaneSystem);
   const pressureAgentLabel = getAgentLabel(selectedControlPlaneSystem, selectedSystemSummary?.pressureAgentId ?? undefined);
+  const currentStateStatus = selectedSystemSummary?.latestExecution?.status ?? liveRun?.status ?? 'active';
+  const currentStateName = selectedControlPlaneSystem?.system.name ?? workflow?.name ?? 'Seeded demo system';
+  const currentStateDescription =
+    selectedControlPlaneSystem?.system.description ?? workflow?.description ?? 'A seeded control-room demo with runtime-aware routes.';
+  const replayPressureSummary = hasRoomProjection
+    ? failedReplayStep?.error ?? failedReplayStep?.summary ?? 'No active pressure point is recorded in the current system.'
+    : selectedSystemSummary?.pressureAgentId
+      ? 'This system has a hot agent in the registry, but it does not yet map to a seeded replay walkthrough.'
+      : 'Import executions and spans to light up Replay for this system.';
+  const releaseHeadline = hasRoomProjection
+    ? candidateCreditsDelta < 0
+      ? `${Math.abs(candidateCreditsDelta)} credits leaner`
+      : 'Guardrails preserved'
+    : selectedSystemSummary?.latestRelease
+      ? formatTokenLabel(selectedSystemSummary.latestRelease.decision)
+      : selectedSystemSummary?.latestEvaluation
+        ? titleCaseStatus(selectedSystemSummary.latestEvaluation.verdict)
+        : 'No release evidence yet';
+  const releaseSummary = hasRoomProjection
+    ? selectedWorkflowState?.optimize.promotionSummary ?? 'No promotion story recorded.'
+    : selectedSystemSummary?.latestRelease?.summary ??
+      selectedSystemSummary?.latestEvaluation?.summary ??
+      'Import evaluations and release decisions to turn Optimize into a real release workbench.';
+
+  function navigateTo(view: ViewId, nextSystemId = systemId || selectedControlPlaneSystem?.system.systemId || null, replace = false) {
+    const targetPath = buildAppRoute({
+      view,
+      systemId: view === 'connect' ? null : nextSystemId,
+    });
+
+    setSelectedView(view);
+    if (view !== 'connect') {
+      setSystemId(nextSystemId ?? '');
+    }
+
+    if (typeof window !== 'undefined') {
+      window.history[replace ? 'replaceState' : 'pushState']({}, '', targetPath);
+    }
+  }
 
   useEffect(() => {
     if (!selectedControlPlaneSystem?.agents.length) {
@@ -233,6 +331,19 @@ export function App() {
 
     setSelectedAgentId(selectedSystemSummary?.pressureAgentId ?? selectedControlPlaneSystem.agents[0]?.agentId ?? '');
   }, [selectedAgentId, selectedControlPlaneSystem, selectedSystemSummary?.pressureAgentId]);
+
+  useEffect(() => {
+    if (!selectedControlPlaneSystem || selectedView === 'connect') {
+      return;
+    }
+
+    const route = parseAppRoute(typeof window !== 'undefined' ? window.location.pathname : '/');
+    if (route.systemId === selectedControlPlaneSystem.system.systemId && route.view === selectedView) {
+      return;
+    }
+
+    navigateTo(selectedView, selectedControlPlaneSystem.system.systemId, true);
+  }, [selectedControlPlaneSystem, selectedView]);
 
   if (loadError) {
     return (
@@ -253,7 +364,7 @@ export function App() {
     );
   }
 
-  if (!demoState || !selectedWorkflowState || !workflow || !liveRun || !replayRun || !candidateRun) {
+  if (!demoState) {
     return (
       <main className="app-shell">
         <div className="app-shell__backdrop" />
@@ -275,42 +386,94 @@ export function App() {
   function handleSystemChange(nextSystemId: string) {
     setSystemId(nextSystemId);
     const nextSystem = sortedSystems.find((systemState) => systemState.system.systemId === nextSystemId) ?? null;
+    setRuntimeId(nextSystem?.system.primaryRuntimeId ?? nextSystem?.system.runtimeIds[0] ?? runtimeId);
     setSelectedAgentId(nextSystem?.agents[0]?.agentId ?? '');
     const nextWorkflowId = getWorkflowIdForSystem(nextSystem);
     if (nextWorkflowId) {
       setWorkflowId(nextWorkflowId);
     }
+    navigateTo(selectedView === 'connect' ? 'overview' : selectedView, nextSystemId);
+  }
+
+  async function handleRefreshControlPlane(nextSystemId?: string) {
+    const nextState = await loadControlPlaneState();
+    setControlPlaneState(nextState);
+
+    if (nextSystemId) {
+      navigateTo(selectedView === 'connect' ? 'overview' : selectedView, nextSystemId, true);
+      return;
+    }
+
+    if (!nextState.systems.length) {
+      return;
+    }
+
+    const refreshedSystem =
+      nextState.systems.find((systemState) => systemState.system.systemId === (selectedControlPlaneSystem?.system.systemId ?? systemId)) ??
+      sortSystemsByActivity(nextState.systems)[0];
+
+    if (refreshedSystem) {
+      navigateTo(selectedView === 'connect' ? 'overview' : selectedView, refreshedSystem.system.systemId, true);
+    }
   }
 
   const controlLoopCue: ControlLoopCue =
-    selectedRoom === 'live'
+    selectedView === 'overview'
       ? {
           eyebrow: 'Control loop',
-          title: 'Next: open Replay',
-          body: `${replayRun.experimentLabel} is the clearest weak run in the loop. Use Replay to confirm what broke before you tune anything else.`,
-          primaryLabel: 'Open Replay',
-          onPrimary: () => setSelectedRoom('replay'),
-          secondaryLabel: failedReplayStep?.title ? `Focus ${failedReplayStep.title}` : undefined,
-          onSecondary: failedReplayStep?.title ? () => setSelectedRoom('replay') : undefined,
+          title: 'Start from the live system',
+          body: 'Use the overview to find the right system and hot agents, then move into Live when you want to operate the active execution path.',
+          primaryLabel: 'Open Live',
+          onPrimary: () => navigateTo('live'),
+          secondaryLabel: 'Open Connect',
+          onSecondary: () => navigateTo('connect', null),
         }
-      : selectedRoom === 'replay'
+      : selectedView === 'connect'
+        ? {
+            eyebrow: 'Control loop',
+            title: 'Next: return to the system overview',
+            body: 'After you register or import a system, come back to Overview to inspect fleet health and decide where to drill in.',
+            primaryLabel: 'Open Overview',
+            onPrimary: () => navigateTo('overview'),
+          }
+      : !hasRoomProjection
+        ? {
+            eyebrow: 'Control loop',
+            title: 'This room needs trace-backed system history',
+            body: 'The system is registered, but there is no seeded room projection for it yet. Import executions, spans, evaluations, and releases, or attach a workflowId if you want to reuse the seeded walkthrough.',
+            primaryLabel: 'Open Connect',
+            onPrimary: () => navigateTo('connect', null),
+            secondaryLabel: 'Open Overview',
+            onSecondary: () => navigateTo('overview'),
+          }
+      : selectedView === 'live'
+        ? {
+            eyebrow: 'Control loop',
+            title: 'Next: open Replay',
+            body: `${replayRun?.experimentLabel ?? 'The selected replay'} is the clearest weak run in the loop. Use Replay to confirm what broke before you tune anything else.`,
+            primaryLabel: 'Open Replay',
+            onPrimary: () => navigateTo('replay'),
+            secondaryLabel: failedReplayStep?.title ? `Focus ${failedReplayStep.title}` : undefined,
+            onSecondary: failedReplayStep?.title ? () => navigateTo('replay') : undefined,
+          }
+        : selectedView === 'replay'
         ? {
             eyebrow: 'Control loop',
             title: 'Next: test the fix in Optimize',
-            body: `Replay already identified the break. Move into Optimize and pressure-test ${candidateRun.experimentLabel} against the healthy control.`,
+            body: `Replay already identified the break. Move into Optimize and pressure-test ${candidateRun?.experimentLabel ?? 'the current candidate'} against the healthy control.`,
             primaryLabel: 'Open Optimize',
-            onPrimary: () => setSelectedRoom('optimize'),
+            onPrimary: () => navigateTo('optimize'),
             secondaryLabel: 'Back to Live',
-            onSecondary: () => setSelectedRoom('live'),
+            onSecondary: () => navigateTo('live'),
           }
         : {
             eyebrow: 'Control loop',
             title: 'Next: validate the promoted system in Live',
-            body: `${candidateRun.experimentLabel} looks strong enough to ship. Move back to Live and confirm the loop still feels healthy after the release call.`,
+            body: `${candidateRun?.experimentLabel ?? 'The current candidate'} looks strong enough to ship. Move back to Live and confirm the loop still feels healthy after the release call.`,
             primaryLabel: 'Open Live',
-            onPrimary: () => setSelectedRoom('live'),
+            onPrimary: () => navigateTo('live'),
             secondaryLabel: 'Re-open Replay',
-            onSecondary: () => setSelectedRoom('replay'),
+            onSecondary: () => navigateTo('replay'),
           };
 
   function dismissOnboarding() {
@@ -330,6 +493,42 @@ export function App() {
     }));
   }
 
+  function renderProjectionUnavailableRoom(room: RoomId) {
+    return (
+      <section className="surface overview-panel">
+        <div className="section-header">
+          <div>
+            <p className="eyebrow">{VIEW_LABELS[room].title}</p>
+            <h2>No seeded room projection for this system</h2>
+            <p className="muted overview-panel__body">
+              This system is visible in the control plane, but this room still depends on trace-backed walkthrough data.
+              Import executions, spans, evaluations, and releases, or attach `metadata.workflowId` if you want to reuse
+              the seeded workflow projection.
+            </p>
+          </div>
+          <span className="meta-chip">{selectedControlPlaneSystem?.system.name ?? 'No system selected'}</span>
+        </div>
+        <div className="signal-band">
+          <article className="signal-band__card">
+            <span className="eyebrow">Tracked agents</span>
+            <strong>{selectedSystemSummary?.agentCount ?? 0}</strong>
+            <p>{selectedSystemSummary?.executionCount ?? 0} executions currently registered for this system.</p>
+          </article>
+          <article className="signal-band__card signal-band__card--directive">
+            <span className="eyebrow">Pressure point</span>
+            <strong>{pressureAgentLabel ?? 'No hot agent yet'}</strong>
+            <p>{replayPressureSummary}</p>
+          </article>
+          <article className="signal-band__card signal-band__card--accent">
+            <span className="eyebrow">Next move</span>
+            <strong>Open Connect</strong>
+            <p>Bring in trace, evaluation, and release evidence so this room can switch from placeholder to real control-plane mode.</p>
+          </article>
+        </div>
+      </section>
+    );
+  }
+
   return (
     <main className="app-shell">
       <div className="app-shell__backdrop" />
@@ -345,12 +544,12 @@ export function App() {
             <div className="hero__current-state">
               <div className="hero__state-copy">
                 <span className="hero__state-label">Current state</span>
-                <strong>{selectedControlPlaneSystem?.system.name ?? workflow.name}</strong>
-                <p>{selectedControlPlaneSystem?.system.description ?? workflow.description}</p>
+                <strong>{currentStateName}</strong>
+                <p>{currentStateDescription}</p>
               </div>
               <div className="hero__state-line">
-                <span className={`status-pill status-pill--${selectedSystemSummary?.latestExecution?.status ?? liveRun.status}`}>
-                  {titleCaseStatus(selectedSystemSummary?.latestExecution?.status ?? liveRun.status)}
+                <span className={`status-pill status-pill--${currentStateStatus}`}>
+                  {titleCaseStatus(currentStateStatus)}
                 </span>
                 <span className="meta-chip">{selectedSystemSummary?.agentCount ?? 0} agents</span>
                 <span className="meta-chip">{selectedSystemSummary?.executionCount ?? 0} executions</span>
@@ -370,7 +569,7 @@ export function App() {
               <label className="select-field">
                 <span>Runtime</span>
                 <select aria-label="Runtime" value={runtimeId} onChange={(event) => setRuntimeId(event.target.value)}>
-                  {demoState.runtimeOptions.map((option) => (
+                  {runtimeOptions.map((option) => (
                     <option key={option.id} value={option.id}>
                       {option.label}
                     </option>
@@ -392,7 +591,7 @@ export function App() {
                       </option>
                     ))}
                   </select>
-                  <small>{selectedControlPlaneSystem?.system.description ?? workflow.description}</small>
+                  <small>{selectedControlPlaneSystem?.system.description ?? currentStateDescription}</small>
                 </label>
               ) : (
                 <label className="select-field">
@@ -404,36 +603,36 @@ export function App() {
                       </option>
                     ))}
                   </select>
-                  <small>{workflow.description}</small>
+                  <small>{workflow?.description ?? currentStateDescription}</small>
                 </label>
               )}
             </div>
             <div className="hero__status-grid">
               <article className="hero-signal hero-signal--live">
                 <span className="hero-signal__label">Live posture</span>
-                <strong>{titleCaseStatus(selectedSystemSummary?.latestExecution?.status ?? liveRun.status)}</strong>
-                <p>{selectedControlPlaneSystem?.system.name ?? liveRun.experimentLabel}</p>
+                <strong>{titleCaseStatus(currentStateStatus)}</strong>
+                <p>{currentStateName}</p>
                 <div className="hero-signal__meta">
-                  <span>{formatCredits(selectedSystemSummary?.avgCredits ?? liveRun.actualCredits)}</span>
-                  <span>{formatDuration(selectedSystemSummary?.avgDurationMs ?? liveRun.durationMs)}</span>
+                  <span>{formatCredits(selectedSystemSummary?.avgCredits ?? liveRun?.actualCredits)}</span>
+                  <span>{formatDuration(selectedSystemSummary?.avgDurationMs ?? liveRun?.durationMs)}</span>
                 </div>
               </article>
               <article className="hero-signal hero-signal--replay">
                 <span className="hero-signal__label">Replay pressure</span>
                 <strong>{pressureAgentLabel ?? failedReplayStep?.title ?? 'No failing step'}</strong>
-                <p>{failedReplayStep?.error ?? failedReplayStep?.summary ?? 'No active pressure point is recorded in the current system.'}</p>
+                <p>{replayPressureSummary}</p>
                 <div className="hero-signal__meta">
-                  <span>{titleCaseStatus(replayRun.status)}</span>
-                  <span>{formatCredits(replayRun.actualCredits)}</span>
+                  <span>{replayRun ? titleCaseStatus(replayRun.status) : `${selectedSystemSummary?.executionCount ?? 0} executions`}</span>
+                  <span>{formatCredits(replayRun?.actualCredits ?? selectedSystemSummary?.avgCredits)}</span>
                 </div>
               </article>
               <article className="hero-signal hero-signal--optimize">
                 <span className="hero-signal__label">Release call</span>
-                <strong>{candidateCreditsDelta < 0 ? `${Math.abs(candidateCreditsDelta)} credits leaner` : 'Guardrails preserved'}</strong>
-                <p>{selectedWorkflowState.optimize.promotionSummary}</p>
+                <strong>{releaseHeadline}</strong>
+                <p>{releaseSummary}</p>
                 <div className="hero-signal__meta">
-                  <span>{candidateDurationDeltaSeconds < 0 ? `${Math.abs(candidateDurationDeltaSeconds)}s faster` : 'No speed gain'}</span>
-                  <span>{selectedWorkflowState.optimize.candidatePlan?.name ?? 'Saved plan'}</span>
+                  <span>{hasRoomProjection ? (candidateDurationDeltaSeconds < 0 ? `${Math.abs(candidateDurationDeltaSeconds)}s faster` : 'No speed gain') : 'Control-plane evidence'}</span>
+                  <span>{selectedWorkflowState?.optimize.candidatePlan?.name ?? selectedSystemSummary?.latestRelease?.releaseId ?? 'Release audit'}</span>
                 </div>
               </article>
             </div>
@@ -449,118 +648,26 @@ export function App() {
           />
         ) : null}
 
-        {sortedSystems.length ? (
-          <SystemCatalogPanel
-            systems={sortedSystems}
-            selectedSystemId={selectedControlPlaneSystem?.system.systemId ?? null}
-            onSelectSystem={handleSystemChange}
-          />
-        ) : null}
-
-        {selectedControlPlaneSystem ? (
-          <section className="system-layout">
-            <AgentFleetPanel
-              systemState={selectedControlPlaneSystem}
-              selectedAgentId={selectedAgentId || null}
-              onSelectAgent={setSelectedAgentId}
-            />
-            <AgentDetailPanel systemState={selectedControlPlaneSystem} agentId={selectedAgentId || null} />
-          </section>
-        ) : null}
-
-        {selectedControlPlaneSystem ? <SystemPerformancePanel systemState={selectedControlPlaneSystem} /> : null}
-
-        <section className="surface overview-panel">
-          <div className="section-header">
-            <div>
-              <p className="eyebrow">Control loop</p>
-              <h2>Live, Replay, Optimize</h2>
-              <p className="muted overview-panel__body">One operating loop: inspect the live system, explain the weak run, then ship a safer candidate.</p>
-            </div>
-            <span className="meta-chip">Demo mode only</span>
-          </div>
-          <div className="overview-grid">
-            <article className="overview-card overview-card--live">
-              <div className="overview-card__header">
-                <div>
-                  <p className="eyebrow">01 · Live</p>
-                  <h3>{selectedWorkflowState.live.run.experimentLabel}</h3>
-                </div>
-                <span className={`status-pill status-pill--${selectedWorkflowState.live.run.status}`}>
-                  {titleCaseStatus(selectedWorkflowState.live.run.status)}
-                </span>
-              </div>
-              <p className="overview-card__summary">Operate the current system before you touch history or overrides.</p>
-              <div className="overview-card__metric">
-                <span>Current workflow</span>
-                <strong>{workflow.name}</strong>
-              </div>
-              <div className="overview-card__path">
-                <span>{formatCredits(selectedWorkflowState.live.run.actualCredits)}</span>
-                <span>{formatDuration(selectedWorkflowState.live.run.durationMs)}</span>
-              </div>
-            </article>
-            <article className="overview-card overview-card--replay">
-              <div className="overview-card__header">
-                <div>
-                  <p className="eyebrow">02 · Replay</p>
-                  <h3>{selectedWorkflowState.replay.run.experimentLabel}</h3>
-                </div>
-                <span className={`status-pill status-pill--${selectedWorkflowState.replay.run.status}`}>
-                  {titleCaseStatus(selectedWorkflowState.replay.run.status)}
-                </span>
-              </div>
-              <p className="overview-card__summary">Find the exact break and turn it into the next fix, not another theory.</p>
-              <div className="overview-card__metric overview-card__metric--warning">
-                <span>Pressure point</span>
-                <strong>{failedReplayStep?.title ?? 'No failed step recorded'}</strong>
-              </div>
-              <div className="overview-card__path">
-                <span>{failedReplayStep?.assignedRole ?? 'reviewer'}</span>
-                <span>{formatCredits(selectedWorkflowState.replay.run.actualCredits)}</span>
-              </div>
-            </article>
-            <article className="overview-card overview-card--optimize">
-              <div className="overview-card__header">
-                <div>
-                  <p className="eyebrow">03 · Optimize</p>
-                  <h3>{selectedWorkflowState.optimize.candidateRun.experimentLabel}</h3>
-                </div>
-                <span className="status-pill status-pill--succeeded">Promotion-ready</span>
-              </div>
-              <p className="overview-card__summary">Compare the candidate against the healthy control and only ship what clearly improves the loop.</p>
-              <div className="overview-card__metric overview-card__metric--success">
-                <span>Release delta</span>
-                <strong>{candidateCreditsDelta < 0 ? `${Math.abs(candidateCreditsDelta)} credits saved` : 'Stable quality retained'}</strong>
-              </div>
-              <div className="overview-card__path">
-                <span>{selectedWorkflowState.optimize.candidatePlan?.name ?? 'Saved plan'}</span>
-                <span>{candidateDurationDeltaSeconds < 0 ? `${Math.abs(candidateDurationDeltaSeconds)}s faster` : 'No speed gain'}</span>
-              </div>
-            </article>
-          </div>
-        </section>
-
         <section className="room-nav surface">
           <div className="room-nav__intro">
-            <p className="eyebrow">Room switcher</p>
-            <h2>Move through one mode at a time</h2>
-            <p className="muted">The mode switcher is the operating rhythm: observe, explain, release.</p>
+            <p className="eyebrow">System routes</p>
+            <h2>Move through the operating surface</h2>
+            <p className="muted">The URL now tracks where you are: overview, live, replay, optimize, or connect.</p>
           </div>
           <div className="room-nav__buttons" role="tablist" aria-label="Room switcher">
-            {(['live', 'replay', 'optimize'] as RoomId[]).map((room) => (
+            {(['overview', 'live', 'replay', 'optimize', 'connect'] as ViewId[]).map((view) => (
               <button
-                key={room}
+                key={view}
                 type="button"
                 role="tab"
-                aria-label={ROOM_LABELS[room].title}
-                aria-selected={selectedRoom === room}
-                className={`room-tab ${selectedRoom === room ? 'room-tab--active' : ''}`}
-                onClick={() => setSelectedRoom(room)}
+                aria-label={VIEW_LABELS[view].title}
+                aria-selected={selectedView === view}
+                className={`room-tab ${selectedView === view ? 'room-tab--active' : ''}`}
+                onClick={() => navigateTo(view)}
               >
-                <span className="room-tab__path">{ROOM_LABELS[room].path}</span>
-                <strong>{ROOM_LABELS[room].title}</strong>
-                <small>{ROOM_LABELS[room].summary}</small>
+                <span className="room-tab__path">{VIEW_LABELS[view].path}</span>
+                <strong>{VIEW_LABELS[view].title}</strong>
+                <small>{VIEW_LABELS[view].summary}</small>
               </button>
             ))}
           </div>
@@ -584,7 +691,23 @@ export function App() {
           </div>
         </section>
 
-        {selectedRoom === 'live' ? (
+        {selectedView === 'overview' ? (
+          <SystemOverviewRoute
+            demoState={demoState}
+            sortedSystems={sortedSystems}
+            selectedSystem={selectedControlPlaneSystem}
+            selectedWorkflowState={selectedWorkflowState}
+            selectedAgentId={selectedAgentId || null}
+            onSelectSystem={handleSystemChange}
+            onSelectAgent={setSelectedAgentId}
+          />
+        ) : null}
+
+        {selectedView === 'connect' ? (
+          <ConnectPanel selectedSystem={selectedControlPlaneSystem} onRefresh={handleRefreshControlPlane} />
+        ) : null}
+
+        {selectedView === 'live' && hasRoomProjection && selectedWorkflowState && workflow ? (
           <RoomShell
             roomId="live"
             eyebrow={ROOM_COPY.live.eyebrow}
@@ -609,7 +732,9 @@ export function App() {
           </RoomShell>
         ) : null}
 
-        {selectedRoom === 'replay' ? (
+        {selectedView === 'live' && !hasRoomProjection ? renderProjectionUnavailableRoom('live') : null}
+
+        {selectedView === 'replay' && hasRoomProjection && selectedWorkflowState ? (
           <RoomShell
             roomId="replay"
             eyebrow={ROOM_COPY.replay.eyebrow}
@@ -633,7 +758,9 @@ export function App() {
           </RoomShell>
         ) : null}
 
-        {selectedRoom === 'optimize' ? (
+        {selectedView === 'replay' && !hasRoomProjection ? renderProjectionUnavailableRoom('replay') : null}
+
+        {selectedView === 'optimize' && hasRoomProjection && selectedWorkflowState ? (
           <RoomShell
             roomId="optimize"
             eyebrow={ROOM_COPY.optimize.eyebrow}
@@ -665,6 +792,8 @@ export function App() {
             />
           </RoomShell>
         ) : null}
+
+        {selectedView === 'optimize' && !hasRoomProjection ? renderProjectionUnavailableRoom('optimize') : null}
       </div>
     </main>
   );
