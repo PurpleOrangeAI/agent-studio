@@ -693,7 +693,7 @@ li {
 
 .live-topology__canvas {
   position: relative;
-  min-height: 34rem;
+  min-height: 36rem;
   border-radius: 30px;
   overflow: hidden;
   border: 1px solid rgba(167, 190, 255, 0.12);
@@ -787,7 +787,7 @@ li {
 .live-node {
   position: absolute;
   z-index: 3;
-  width: min(11rem, 28vw);
+  width: min(10rem, 24vw);
   transform: translate(-50%, -50%);
   border-radius: 22px;
   border: 1px solid rgba(167, 190, 255, 0.12);

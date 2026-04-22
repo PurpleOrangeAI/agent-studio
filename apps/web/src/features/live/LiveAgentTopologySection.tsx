@@ -24,6 +24,33 @@ type RoleNode = {
   top: string;
 };
 
+const POSITION_PRESETS: Record<number, Array<[number, number]>> = {
+  1: [[50, 18]],
+  2: [[24, 34], [76, 34]],
+  3: [[50, 18], [24, 62], [76, 62]],
+  4: [
+    [20, 28],
+    [74, 28],
+    [74, 68],
+    [20, 68],
+  ],
+  5: [
+    [50, 16],
+    [18, 34],
+    [76, 34],
+    [68, 72],
+    [26, 72],
+  ],
+  6: [
+    [50, 15],
+    [18, 28],
+    [76, 28],
+    [76, 66],
+    [50, 79],
+    [18, 66],
+  ],
+};
+
 function formatRoleLabel(role: string) {
   return role
     .split(/[-_ ]+/)
@@ -60,8 +87,11 @@ function buildRoleNodes(workflow: Workflow, replay: Replay): RoleNode[] {
     const totalCredits = executedSteps.reduce((sum, step) => sum + (step.actualCredits ?? 0), 0);
     const totalDuration = executedSteps.reduce((sum, step) => sum + (step.durationMs ?? 0), 0);
     const phases = Array.from(new Set(steps.map((step) => step.kind)));
+    const preset = POSITION_PRESETS[roles.length]?.[index];
     const angle = (-Math.PI / 2) + ((Math.PI * 2) / Math.max(roles.length, 1)) * index;
-    const radius = roles.length <= 4 ? 31 : 35;
+    const radius = roles.length <= 4 ? 31 : 39;
+    const fallbackLeft = 50 + Math.cos(angle) * radius;
+    const fallbackTop = 50 + Math.sin(angle) * radius;
 
     return {
       role,
@@ -78,8 +108,8 @@ function buildRoleNodes(workflow: Workflow, replay: Replay): RoleNode[] {
       durationMs: totalDuration || undefined,
       credits: totalCredits || undefined,
       stepCount: steps.length,
-      left: `${50 + Math.cos(angle) * radius}%`,
-      top: `${50 + Math.sin(angle) * radius}%`,
+      left: `${preset?.[0] ?? fallbackLeft}%`,
+      top: `${preset?.[1] ?? fallbackTop}%`,
     };
   });
 }
