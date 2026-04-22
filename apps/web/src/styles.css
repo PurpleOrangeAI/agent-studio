@@ -367,6 +367,14 @@ li {
   align-items: start;
 }
 
+.section-header__meta {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
 .loop-grid,
 .overview-grid,
 .advanced-grid {

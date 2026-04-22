@@ -83,7 +83,7 @@ export interface ApiStoreSnapshot {
 
 interface ApiStoreOptions {
   snapshot?: ApiStoreSnapshot | null;
-  onChange?: (snapshot: ApiStoreSnapshot) => void;
+  onChange?: (snapshot: ApiStoreSnapshot) => void | Promise<void>;
 }
 
 export class ApiStore {
@@ -104,8 +104,9 @@ export class ApiStore {
   private readonly interventions = new Map<string, InterventionRecord>();
   private readonly evaluations = new Map<string, EvaluationRecord>();
   private readonly releaseDecisions = new Map<string, ReleaseDecision>();
-  private readonly onChange?: (snapshot: ApiStoreSnapshot) => void;
+  private readonly onChange?: (snapshot: ApiStoreSnapshot) => void | Promise<void>;
   private mutationDepth = 0;
+  private pendingPersistence = Promise.resolve();
 
   constructor(seed = createSeededDemoState(), options: ApiStoreOptions = {}) {
     this.onChange = options.onChange;
@@ -192,9 +193,18 @@ export class ApiStore {
     } finally {
       this.mutationDepth -= 1;
       if (this.mutationDepth === 0) {
-        this.onChange?.(this.buildSnapshot());
+        const maybePersist = this.onChange?.(this.buildSnapshot());
+
+        if (maybePersist && typeof (maybePersist as Promise<void>).then === 'function') {
+          const task = Promise.resolve(maybePersist).catch(() => undefined);
+          this.pendingPersistence = this.pendingPersistence.then(() => task);
+        }
       }
     }
+  }
+
+  flushPendingPersistence() {
+    return this.pendingPersistence;
   }
 
   buildSnapshot(): ApiStoreSnapshot {

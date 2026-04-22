@@ -1,12 +1,13 @@
-import type { ControlPlaneSystemState } from '../../app/control-plane';
+import type { ControlPlaneStorageInfo, ControlPlaneSystemState } from '../../app/control-plane';
 import { getMetricDelta, summarizeAgents, summarizeSystem } from '../../app/control-plane';
 import { formatCredits, formatDateTime, formatDelta, formatDuration, titleCaseStatus } from '../../app/format';
 
 interface SystemPerformancePanelProps {
   systemState: ControlPlaneSystemState | null;
+  storage?: ControlPlaneStorageInfo | null;
 }
 
-export function SystemPerformancePanel({ systemState }: SystemPerformancePanelProps) {
+export function SystemPerformancePanel({ systemState, storage }: SystemPerformancePanelProps) {
   const summary = summarizeSystem(systemState);
   const topAgents = summarizeAgents(systemState).slice(0, 2);
   const latestEvaluation = summary?.latestEvaluation ?? null;
@@ -26,9 +27,16 @@ export function SystemPerformancePanel({ systemState }: SystemPerformancePanelPr
           <h2>{summary.system.name}</h2>
           <p className="muted">Use this before you enter the rooms. It gives the current operating posture, the release posture, and the hottest agents in one place.</p>
         </div>
-        <span className={`status-pill status-pill--${summary.latestExecution?.status ?? summary.system.status ?? 'active'}`}>
-          {titleCaseStatus(summary.latestExecution?.status ?? summary.system.status ?? 'active')}
-        </span>
+        <div className="section-header__meta">
+          <span className={`status-pill status-pill--${summary.latestExecution?.status ?? summary.system.status ?? 'active'}`}>
+            {titleCaseStatus(summary.latestExecution?.status ?? summary.system.status ?? 'active')}
+          </span>
+          {storage ? (
+            <span className="meta-chip">
+              {storage.persistenceEnabled ? 'History persistent' : 'History ephemeral'}
+            </span>
+          ) : null}
+        </div>
       </div>
       <div className="metric-grid">
         <div className="metric-card metric-card--primary">

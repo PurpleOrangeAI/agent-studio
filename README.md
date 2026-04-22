@@ -32,3 +32,21 @@ This repo currently gives you a seeded local control-room demo plus a LangGraph 
 ## Public launch
 
 This repo is the standalone open-source surface for Agent Studio. The public demo reads seeded data from the API, and the API defaults to `http://localhost:4000`.
+
+## Persistence modes
+
+Agent Studio now supports three storage modes:
+
+- `memory`
+  - default fallback
+  - good for a seeded demo
+  - not durable across cold starts
+- `file`
+  - self-hosted persistence
+  - set `AGENT_STUDIO_STORE_FILE=/absolute/path/to/store.json`
+- `blob`
+  - hosted persistence for Vercel deployments
+  - uses `BLOB_READ_WRITE_TOKEN`
+  - optional `AGENT_STUDIO_BLOB_PATH` overrides the default snapshot path `control-plane/store.json`
+
+If `BLOB_READ_WRITE_TOKEN` is present, Agent Studio automatically prefers hosted blob persistence.

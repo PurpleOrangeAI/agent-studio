@@ -6,8 +6,8 @@ let appPromise: Promise<ApiApp> | undefined;
 
 async function getApp(): Promise<ApiApp> {
   if (!appPromise) {
-    appPromise = import('../apps/api/dist/server.js').then(({ createApiApp }) =>
-      createApiApp(),
+    appPromise = import('../apps/api/dist/server.js').then(({ createDefaultApiApp }) =>
+      createDefaultApiApp(),
     );
   }
 

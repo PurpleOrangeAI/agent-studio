@@ -712,6 +712,7 @@ export function App() {
             sortedSystems={sortedSystems}
             selectedSystem={selectedControlPlaneSystem}
             selectedWorkflowState={selectedWorkflowState}
+            storage={controlPlaneState?.storage ?? null}
             selectedAgentId={selectedAgentId || null}
             onSelectSystem={handleSystemChange}
             onSelectAgent={setSelectedAgentId}

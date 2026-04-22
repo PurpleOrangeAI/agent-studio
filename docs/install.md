@@ -40,6 +40,27 @@ Run the web app in another terminal:
 VITE_API_URL=http://localhost:4000 corepack pnpm --filter @agent-studio/web dev
 ```
 
+## Persistence
+
+Agent Studio supports:
+
+- ephemeral memory mode
+- self-hosted file persistence
+- hosted Vercel Blob persistence
+
+For self-hosted file persistence:
+
+```bash
+export AGENT_STUDIO_STORE_FILE="$PWD/.agent-studio/store.json"
+corepack pnpm --filter @agent-studio/api dev
+```
+
+For hosted blob persistence on Vercel:
+
+- link a private Blob store to the project so `BLOB_READ_WRITE_TOKEN` is present
+- optionally set `AGENT_STUDIO_BLOB_PATH`
+- the API will automatically switch to blob mode when the token exists
+
 ## Repo layout
 
 - `apps/web` is the public demo shell

@@ -127,11 +127,18 @@ export function ConnectPanel({ selectedSystem, storage, onRefresh }: ConnectPane
       <div className={`inline-callout ${storage?.persistenceEnabled ? 'inline-callout--success' : 'inline-callout--warning'}`}>
         <span className="eyebrow">Storage mode</span>
         <p>
-          <strong>{storage?.mode === 'file' ? 'Persistent file store' : 'Ephemeral memory store'}</strong>
+          <strong>
+            {storage?.mode === 'blob'
+              ? 'Persistent hosted blob store'
+              : storage?.mode === 'file'
+                ? 'Persistent file store'
+                : 'Ephemeral memory store'}
+          </strong>
           {' '}
           {storage?.detail ?? 'Storage metadata unavailable.'}
         </p>
         {storage?.filePath ? <code>{storage.filePath}</code> : null}
+        {!storage?.filePath && storage?.blobPath ? <code>{storage.blobPath}</code> : null}
       </div>
       <div className="connect-grid">
         <section className="mini-surface">

@@ -32,26 +32,34 @@ export async function handleIngestRoutes(request: Request, pathname: string, sto
   try {
     if (pathname === '/api/ingest/workflows') {
       const payload = workflowSchema.parse(await readJsonBody(request));
+      const workflow = store.upsertWorkflow(payload);
+      await store.flushPendingPersistence();
 
-      return jsonResponse({ workflow: store.upsertWorkflow(payload) }, { status: 201 });
+      return jsonResponse({ workflow }, { status: 201 });
     }
 
     if (pathname === '/api/ingest/runs') {
       const payload = runSchema.parse(await readJsonBody(request));
+      const run = store.upsertRun(payload);
+      await store.flushPendingPersistence();
 
-      return jsonResponse({ run: store.upsertRun(payload) }, { status: 201 });
+      return jsonResponse({ run }, { status: 201 });
     }
 
     if (pathname === '/api/ingest/replays') {
       const payload = ingestReplaySchema.parse(await readJsonBody(request));
+      const replay = store.upsertReplay(payload);
+      await store.flushPendingPersistence();
 
-      return jsonResponse({ replay: store.upsertReplay(payload) }, { status: 201 });
+      return jsonResponse({ replay }, { status: 201 });
     }
 
     if (pathname === '/api/ingest/operational-contexts') {
       const payload = reachableOperationalContextSchema.parse(await readJsonBody(request));
+      const operationalContext = store.upsertOperationalContext(payload);
+      await store.flushPendingPersistence();
 
-      return jsonResponse({ operationalContext: store.upsertOperationalContext(payload) }, { status: 201 });
+      return jsonResponse({ operationalContext }, { status: 201 });
     }
   } catch (error) {
     if (error instanceof ZodError) {

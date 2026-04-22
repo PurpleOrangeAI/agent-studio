@@ -290,7 +290,7 @@ describe('Agent Studio API', () => {
     };
 
     try {
-      const firstConfiguredStore = createConfiguredStore(env);
+      const firstConfiguredStore = await createConfiguredStore(env);
       const firstApp = createApiApp(firstConfiguredStore);
 
       const runtimeId = 'runtime_persisted';
@@ -330,7 +330,7 @@ describe('Agent Studio API', () => {
 
       expect(systemResponse.status).toBe(201);
 
-      const secondConfiguredStore = createConfiguredStore(env);
+      const secondConfiguredStore = await createConfiguredStore(env);
       const secondApp = createApiApp(secondConfiguredStore);
 
       const metaResponse = await secondApp.handle(new Request('http://agent-studio.test/api/control/meta'));

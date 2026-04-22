@@ -21,6 +21,15 @@ interface CreateApiAppOptions {
   storage?: ApiStorageInfo;
 }
 
+export async function createDefaultApiApp(env: NodeJS.ProcessEnv = process.env) {
+  const { store, storage } = await createConfiguredStore(env);
+
+  return createApiApp({
+    store,
+    storage,
+  });
+}
+
 export function createApiApp(options: CreateApiAppOptions = {}): ApiApp {
   const store = options.store ?? new ApiStore();
   const storage = options.storage ?? getApiStorageInfo();
@@ -94,12 +103,8 @@ export function createApiApp(options: CreateApiAppOptions = {}): ApiApp {
   };
 }
 
-export function startApiServer(port = Number(process.env.PORT ?? 4000)) {
-  const { store, storage } = createConfiguredStore();
-  const app = createApiApp({
-    store,
-    storage,
-  });
+export async function startApiServer(port = Number(process.env.PORT ?? 4000)) {
+  const app = await createDefaultApiApp();
   const server = createServer(async (request, response) => {
     const result = await app.handle(toRequest(request));
     result.headers.set('access-control-allow-origin', '*');
@@ -113,9 +118,9 @@ export function startApiServer(port = Number(process.env.PORT ?? 4000)) {
 
 if (import.meta.url === `file://${process.argv[1]}`) {
   const port = Number(process.env.PORT ?? 4000);
-  const server = startApiServer(port);
-
-  server.on('listening', () => {
-    process.stdout.write(`Agent Studio API listening on http://localhost:${port}\n`);
+  startApiServer(port).then((server) => {
+    server.on('listening', () => {
+      process.stdout.write(`Agent Studio API listening on http://localhost:${port}\n`);
+    });
   });
 }

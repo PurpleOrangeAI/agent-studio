@@ -39,9 +39,10 @@ export interface ControlPlaneSystemState {
 }
 
 export interface ControlPlaneStorageInfo {
-  mode: 'memory' | 'file';
+  mode: 'memory' | 'file' | 'blob';
   persistenceEnabled: boolean;
   filePath: string | null;
+  blobPath?: string | null;
   detail: string;
 }
 
@@ -927,6 +928,7 @@ export async function loadControlPlaneState(options: LoadControlPlaneStateOption
       mode: 'memory' as const,
       persistenceEnabled: false,
       filePath: null,
+      blobPath: null,
       detail: 'Ephemeral in-memory demo store.',
     },
   }));

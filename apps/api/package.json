@@ -15,6 +15,7 @@
   "dependencies": {
     "@agent-studio/contracts": "workspace:*",
     "@agent-studio/demo": "workspace:*",
+    "@vercel/blob": "^2.3.3",
     "zod": "^3.23.8"
   },
   "devDependencies": {

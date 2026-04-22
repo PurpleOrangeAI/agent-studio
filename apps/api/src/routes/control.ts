@@ -194,68 +194,90 @@ export async function handleControlIngestRoutes(request: Request, pathname: stri
   try {
     if (pathname === '/api/control/ingest/runtimes') {
       const items = await parseBatch(request, runtimeRegistrationSchema);
+      const result = store.upsertRuntimes(items);
+      await store.flushPendingPersistence();
 
-      return jsonResponse({ items: store.upsertRuntimes(items) }, { status: 201 });
+      return jsonResponse({ items: result }, { status: 201 });
     }
 
     if (pathname === '/api/control/ingest/systems') {
       const items = await parseBatch(request, systemDefinitionSchema);
+      const result = store.upsertSystems(items);
+      await store.flushPendingPersistence();
 
-      return jsonResponse({ items: store.upsertSystems(items) }, { status: 201 });
+      return jsonResponse({ items: result }, { status: 201 });
     }
 
     if (pathname === '/api/control/ingest/agents') {
       const items = await parseBatch(request, agentDefinitionSchema);
+      const result = store.upsertAgents(items);
+      await store.flushPendingPersistence();
 
-      return jsonResponse({ items: store.upsertAgents(items) }, { status: 201 });
+      return jsonResponse({ items: result }, { status: 201 });
     }
 
     if (pathname === '/api/control/ingest/topologies') {
       const items = await parseBatch(request, topologySnapshotSchema);
+      const result = store.upsertTopologySnapshots(items);
+      await store.flushPendingPersistence();
 
-      return jsonResponse({ items: store.upsertTopologySnapshots(items) }, { status: 201 });
+      return jsonResponse({ items: result }, { status: 201 });
     }
 
     if (pathname === '/api/control/ingest/executions') {
       const items = await parseBatch(request, executionRecordSchema);
+      const result = store.upsertExecutions(items);
+      await store.flushPendingPersistence();
 
-      return jsonResponse({ items: store.upsertExecutions(items) }, { status: 201 });
+      return jsonResponse({ items: result }, { status: 201 });
     }
 
     if (pathname === '/api/control/ingest/spans') {
       const items = await parseBatch(request, spanRecordSchema);
+      const result = store.upsertSpans(items);
+      await store.flushPendingPersistence();
 
-      return jsonResponse({ items: store.upsertSpans(items) }, { status: 201 });
+      return jsonResponse({ items: result }, { status: 201 });
     }
 
     if (pathname === '/api/control/ingest/artifacts') {
       const items = await parseBatch(request, artifactRecordSchema);
+      const result = store.upsertArtifacts(items);
+      await store.flushPendingPersistence();
 
-      return jsonResponse({ items: store.upsertArtifacts(items) }, { status: 201 });
+      return jsonResponse({ items: result }, { status: 201 });
     }
 
     if (pathname === '/api/control/ingest/metrics') {
       const items = await parseBatch(request, metricSampleSchema);
+      const result = store.upsertMetrics(items);
+      await store.flushPendingPersistence();
 
-      return jsonResponse({ items: store.upsertMetrics(items) }, { status: 201 });
+      return jsonResponse({ items: result }, { status: 201 });
     }
 
     if (pathname === '/api/control/ingest/interventions') {
       const items = await parseBatch(request, interventionRecordSchema);
+      const result = store.upsertInterventions(items);
+      await store.flushPendingPersistence();
 
-      return jsonResponse({ items: store.upsertInterventions(items) }, { status: 201 });
+      return jsonResponse({ items: result }, { status: 201 });
     }
 
     if (pathname === '/api/control/ingest/evaluations') {
       const items = await parseBatch(request, evaluationRecordSchema);
+      const result = store.upsertEvaluations(items);
+      await store.flushPendingPersistence();
 
-      return jsonResponse({ items: store.upsertEvaluations(items) }, { status: 201 });
+      return jsonResponse({ items: result }, { status: 201 });
     }
 
     if (pathname === '/api/control/ingest/releases') {
       const items = await parseBatch(request, releaseDecisionSchema);
+      const result = store.upsertReleaseDecisions(items);
+      await store.flushPendingPersistence();
 
-      return jsonResponse({ items: store.upsertReleaseDecisions(items) }, { status: 201 });
+      return jsonResponse({ items: result }, { status: 201 });
     }
   } catch (error) {
     if (error instanceof ZodError) {

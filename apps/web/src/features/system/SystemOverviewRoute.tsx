@@ -1,5 +1,5 @@
 import type { DemoState, WorkflowDemoState } from '../../app/demo';
-import { getAgentLabel, summarizeSystem, type ControlPlaneSystemState } from '../../app/control-plane';
+import { getAgentLabel, summarizeSystem, type ControlPlaneStorageInfo, type ControlPlaneSystemState } from '../../app/control-plane';
 import { formatCredits, formatDuration, titleCaseStatus } from '../../app/format';
 import { AgentDetailPanel } from './AgentDetailPanel';
 import { AgentFleetPanel } from './AgentFleetPanel';
@@ -11,6 +11,7 @@ interface SystemOverviewRouteProps {
   sortedSystems: ControlPlaneSystemState[];
   selectedSystem: ControlPlaneSystemState | null;
   selectedWorkflowState: WorkflowDemoState | null;
+  storage: ControlPlaneStorageInfo | null;
   selectedAgentId: string | null;
   onSelectSystem: (systemId: string) => void;
   onSelectAgent: (agentId: string) => void;
@@ -29,6 +30,7 @@ export function SystemOverviewRoute({
   sortedSystems,
   selectedSystem,
   selectedWorkflowState,
+  storage,
   selectedAgentId,
   onSelectSystem,
   onSelectAgent,
@@ -60,7 +62,7 @@ export function SystemOverviewRoute({
           </section>
         ) : null}
 
-        {selectedSystem ? <SystemPerformancePanel systemState={selectedSystem} /> : null}
+        {selectedSystem ? <SystemPerformancePanel systemState={selectedSystem} storage={storage} /> : null}
 
         <section className="surface overview-panel">
           <div className="section-header">
@@ -175,7 +177,7 @@ export function SystemOverviewRoute({
         </section>
       ) : null}
 
-      {selectedSystem ? <SystemPerformancePanel systemState={selectedSystem} /> : null}
+      {selectedSystem ? <SystemPerformancePanel systemState={selectedSystem} storage={storage} /> : null}
 
       <section className="surface overview-panel">
         <div className="section-header">
