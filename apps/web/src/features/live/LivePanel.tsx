@@ -1,6 +1,7 @@
 import type { Replay, Run, Workflow } from '@agent-studio/contracts';
 
 import { formatCredits, formatDateTime, formatDuration, titleCaseStatus } from '../../app/format';
+import { LiveAgentTopologySection } from './LiveAgentTopologySection';
 
 interface LivePanelProps {
   workflow: Workflow;
@@ -10,10 +11,13 @@ interface LivePanelProps {
 
 export function LivePanel({ workflow, run, replay }: LivePanelProps) {
   const topSignal = replay.operationalContext?.similarRuns[0];
+  const healthyAnchor = replay.operationalContext?.lastHealthyComparison;
+  const recommendation = replay.operationalContext?.recommendationEvidence[0];
+  const directiveCount = Object.keys(replay.studioState?.roleDirectives ?? {}).length;
 
   return (
     <div className="room-stack">
-      <section className="surface">
+      <section className="surface surface--live-brief">
         <div className="section-header">
           <div>
             <p className="eyebrow">Current posture</p>
@@ -43,6 +47,23 @@ export function LivePanel({ workflow, run, replay }: LivePanelProps) {
           {replay.stepExecutions[0]?.summary} The run finished with a safe publish path and gives the public demo a stable
           “healthy now” state to orient around.
         </p>
+        <div className="signal-band">
+          <article className="signal-band__card">
+            <p className="eyebrow">Healthy anchor</p>
+            <strong>{healthyAnchor?.label ?? run.experimentLabel}</strong>
+            <p>{healthyAnchor?.summary ?? 'This run is currently the strongest baseline in the demo loop.'}</p>
+          </article>
+          <article className="signal-band__card signal-band__card--accent">
+            <p className="eyebrow">Recommendation</p>
+            <strong>{recommendation?.title ?? 'Operator loop is stable'}</strong>
+            <p>{recommendation?.body ?? 'No urgent intervention needed. Use Replay for explanation and Optimize for release work.'}</p>
+          </article>
+          <article className="signal-band__card signal-band__card--directive">
+            <p className="eyebrow">Directive load</p>
+            <strong>{directiveCount} tuned roles</strong>
+            <p>Role directives stay visible so the operator can see how much steering the system is carrying right now.</p>
+          </article>
+        </div>
         {topSignal ? (
           <div className="inline-callout">
             <span className="eyebrow">Best next hop</span>
@@ -54,10 +75,12 @@ export function LivePanel({ workflow, run, replay }: LivePanelProps) {
         ) : null}
       </section>
 
-      <section className="surface">
+      <LiveAgentTopologySection workflow={workflow} run={run} replay={replay} />
+
+      <section className="surface surface--sequence">
         <div className="section-header">
           <div>
-            <p className="eyebrow">Workflow map</p>
+            <p className="eyebrow">Execution lane</p>
             <h3>Live sequence</h3>
           </div>
           <span className="meta-chip">{workflow.steps.length} steps</span>
