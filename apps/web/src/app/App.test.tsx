@@ -182,6 +182,12 @@ const demoStateFixture: DemoState = {
 };
 
 const controlPlaneFixture: ControlPlaneState = {
+  storage: {
+    mode: 'memory',
+    persistenceEnabled: false,
+    filePath: null,
+    detail: 'Ephemeral in-memory demo store.',
+  },
   runtimes: [
     {
       runtimeId: 'runtime_demo_seeded',

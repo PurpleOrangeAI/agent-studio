@@ -38,10 +38,18 @@ export interface ControlPlaneSystemState {
   releases: ReleaseDecision[];
 }
 
+export interface ControlPlaneStorageInfo {
+  mode: 'memory' | 'file';
+  persistenceEnabled: boolean;
+  filePath: string | null;
+  detail: string;
+}
+
 export interface ControlPlaneState {
   runtimes: RuntimeRegistration[];
   systems: ControlPlaneSystemState[];
   systemsByWorkflowId: Record<string, ControlPlaneSystemState>;
+  storage: ControlPlaneStorageInfo;
 }
 
 export interface AgentSummary {
@@ -910,6 +918,18 @@ export async function loadControlPlaneState(options: LoadControlPlaneStateOption
   }
 
   const apiBaseUrl = options.apiBaseUrl ?? import.meta.env.VITE_API_URL ?? '';
+  const storagePayload = await fetchJson<{ item: ControlPlaneStorageInfo }>(
+    fetcher,
+    apiBaseUrl,
+    '/api/control/meta',
+  ).catch(() => ({
+    item: {
+      mode: 'memory' as const,
+      persistenceEnabled: false,
+      filePath: null,
+      detail: 'Ephemeral in-memory demo store.',
+    },
+  }));
   const runtimesPayload = await fetchJson<{ items: RuntimeRegistration[] }>(fetcher, apiBaseUrl, '/api/control/runtimes');
   const systemsPayload = await fetchJson<{ items: SystemDefinition[] }>(fetcher, apiBaseUrl, '/api/control/systems');
 
@@ -966,6 +986,7 @@ export async function loadControlPlaneState(options: LoadControlPlaneStateOption
     runtimes: runtimesPayload.items,
     systems,
     systemsByWorkflowId,
+    storage: storagePayload.item,
   };
 }
 

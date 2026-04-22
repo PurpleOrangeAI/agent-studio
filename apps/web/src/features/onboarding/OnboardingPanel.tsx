@@ -77,6 +77,8 @@ export function OnboardingPanel({ onDismiss, controlPlaneState, systemState, run
           </>
         ) : null}
         .
+        {' '}
+        <strong>Storage:</strong> {controlPlaneState?.storage.mode === 'file' ? 'persistent file-backed registry' : 'ephemeral in-memory demo store'}.
       </div>
     </section>
   );

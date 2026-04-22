@@ -1,10 +1,11 @@
 import { useState } from 'react';
 
-import type { ControlPlaneImportBundle, ControlPlaneSystemState } from '../../app/control-plane';
+import type { ControlPlaneImportBundle, ControlPlaneStorageInfo, ControlPlaneSystemState } from '../../app/control-plane';
 import { ingestControlPlaneBundle, ingestControlPlaneItems } from '../../app/control-plane';
 
 interface ConnectPanelProps {
   selectedSystem: ControlPlaneSystemState | null;
+  storage: ControlPlaneStorageInfo | null;
   onRefresh: (nextSystemId?: string) => Promise<void> | void;
 }
 
@@ -39,7 +40,7 @@ function createId(prefix: string, seed: string) {
   return `${prefix}_${slug(seed)}_${Date.now().toString(36)}`;
 }
 
-export function ConnectPanel({ selectedSystem, onRefresh }: ConnectPanelProps) {
+export function ConnectPanel({ selectedSystem, storage, onRefresh }: ConnectPanelProps) {
   const [registrationForm, setRegistrationForm] = useState(INITIAL_REGISTRATION_FORM);
   const [bundleText, setBundleText] = useState<string>('{\n  "agents": [],\n  "topologies": [],\n  "executions": [],\n  "spans": [],\n  "metrics": []\n}');
   const [status, setStatus] = useState<string | null>(null);
@@ -122,6 +123,15 @@ export function ConnectPanel({ selectedSystem, onRefresh }: ConnectPanelProps) {
           </p>
         </div>
         <span className="meta-chip">{selectedSystem?.system.name ?? 'No system selected'}</span>
+      </div>
+      <div className={`inline-callout ${storage?.persistenceEnabled ? 'inline-callout--success' : 'inline-callout--warning'}`}>
+        <span className="eyebrow">Storage mode</span>
+        <p>
+          <strong>{storage?.mode === 'file' ? 'Persistent file store' : 'Ephemeral memory store'}</strong>
+          {' '}
+          {storage?.detail ?? 'Storage metadata unavailable.'}
+        </p>
+        {storage?.filePath ? <code>{storage.filePath}</code> : null}
       </div>
       <div className="connect-grid">
         <section className="mini-surface">

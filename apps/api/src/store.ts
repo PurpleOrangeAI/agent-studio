@@ -59,6 +59,33 @@ function sortByLabel<T extends { label?: string; name?: string }>(values: T[]) {
   });
 }
 
+export interface ApiStoreSnapshot {
+  workflows: Workflow[];
+  runs: Run[];
+  replays: Replay[];
+  operationalContexts: OperationalContext[];
+  studioStates: Array<{
+    workflowId: string;
+    studioState: StudioState;
+  }>;
+  runtimes: RuntimeRegistration[];
+  systems: SystemDefinition[];
+  agents: AgentDefinition[];
+  topologySnapshots: TopologySnapshot[];
+  executions: ExecutionRecord[];
+  spans: SpanRecord[];
+  artifacts: ArtifactRecord[];
+  metrics: MetricSample[];
+  interventions: InterventionRecord[];
+  evaluations: EvaluationRecord[];
+  releaseDecisions: ReleaseDecision[];
+}
+
+interface ApiStoreOptions {
+  snapshot?: ApiStoreSnapshot | null;
+  onChange?: (snapshot: ApiStoreSnapshot) => void;
+}
+
 export class ApiStore {
   private readonly workflows = new Map<string, Workflow>();
   private readonly runs = new Map<string, Run>();
@@ -77,8 +104,21 @@ export class ApiStore {
   private readonly interventions = new Map<string, InterventionRecord>();
   private readonly evaluations = new Map<string, EvaluationRecord>();
   private readonly releaseDecisions = new Map<string, ReleaseDecision>();
+  private readonly onChange?: (snapshot: ApiStoreSnapshot) => void;
+  private mutationDepth = 0;
 
-  constructor(seed = createSeededDemoState()) {
+  constructor(seed = createSeededDemoState(), options: ApiStoreOptions = {}) {
+    this.onChange = options.onChange;
+
+    if (options.snapshot) {
+      this.hydrateSnapshot(options.snapshot);
+      return;
+    }
+
+    this.hydrateSeed(seed);
+  }
+
+  private hydrateSeed(seed: ReturnType<typeof createSeededDemoState>) {
     seed.workflows.forEach((workflow) => this.workflows.set(workflow.workflowId, cloneWorkflow(workflow)));
 
     Object.values(seed.workflowStates).forEach((state) => {
@@ -114,6 +154,73 @@ export class ApiStore {
     );
   }
 
+  private hydrateSnapshot(snapshot: ApiStoreSnapshot) {
+    snapshot.workflows.forEach((workflow) => this.workflows.set(workflow.workflowId, cloneWorkflow(workflow)));
+    snapshot.runs.forEach((run) => this.runs.set(run.runId, cloneRun(run)));
+    snapshot.replays.forEach((replay) => this.replays.set(replay.run.runId, cloneReplay(replay)));
+    snapshot.operationalContexts.forEach((context) => {
+      const key = context.runId ?? `${context.workflowId}:${context.generatedAt}`;
+      this.operationalContexts.set(key, cloneRecord(context));
+    });
+    snapshot.studioStates.forEach((entry) => this.studioStates.set(entry.workflowId, cloneStudioState(entry.studioState)));
+    snapshot.runtimes.forEach((runtime) => this.runtimes.set(runtime.runtimeId, cloneRecord(runtime)));
+    snapshot.systems.forEach((system) => this.systems.set(system.systemId, cloneRecord(system)));
+    snapshot.agents.forEach((agent) => this.agents.set(agent.agentId, cloneRecord(agent)));
+    snapshot.topologySnapshots.forEach((snapshotEntry) => {
+      const current = this.topologySnapshots.get(snapshotEntry.systemId) ?? [];
+      current.push(cloneRecord(snapshotEntry));
+      this.topologySnapshots.set(snapshotEntry.systemId, current);
+    });
+    snapshot.executions.forEach((execution) => this.executions.set(execution.executionId, cloneRecord(execution)));
+    snapshot.spans.forEach((span) => this.spans.set(span.spanId, cloneRecord(span)));
+    snapshot.artifacts.forEach((artifact) => this.artifacts.set(artifact.artifactId, cloneRecord(artifact)));
+    snapshot.metrics.forEach((metric) => this.metrics.set(metric.sampleId, cloneRecord(metric)));
+    snapshot.interventions.forEach((intervention) =>
+      this.interventions.set(intervention.interventionId, cloneRecord(intervention)),
+    );
+    snapshot.evaluations.forEach((evaluation) => this.evaluations.set(evaluation.evaluationId, cloneRecord(evaluation)));
+    snapshot.releaseDecisions.forEach((releaseDecision) =>
+      this.releaseDecisions.set(releaseDecision.releaseId, cloneRecord(releaseDecision)),
+    );
+  }
+
+  private runMutation<T>(operation: () => T): T {
+    this.mutationDepth += 1;
+
+    try {
+      return operation();
+    } finally {
+      this.mutationDepth -= 1;
+      if (this.mutationDepth === 0) {
+        this.onChange?.(this.buildSnapshot());
+      }
+    }
+  }
+
+  buildSnapshot(): ApiStoreSnapshot {
+    return {
+      workflows: this.listWorkflows(),
+      runs: [...this.runs.values()].map((run) => cloneRun(run)),
+      replays: [...this.replays.values()].map((replay) => cloneReplay(replay)),
+      operationalContexts: [...this.operationalContexts.values()].map((context) => cloneRecord(context)),
+      studioStates: [...this.studioStates.entries()].map(([workflowId, studioState]) => ({
+        workflowId,
+        studioState: cloneStudioState(studioState),
+      })),
+      runtimes: this.listRuntimes(),
+      systems: this.listSystems(),
+      agents: [...this.agents.values()].map((agent) => cloneRecord(agent)),
+      topologySnapshots: [...this.topologySnapshots.values()].flatMap((snapshots) => snapshots.map((snapshot) => cloneRecord(snapshot))),
+      executions: [...this.executions.values()].map((execution) => cloneRecord(execution)),
+      spans: [...this.spans.values()].map((span) => cloneRecord(span)),
+      artifacts: [...this.artifacts.values()].map((artifact) => cloneRecord(artifact)),
+      metrics: [...this.metrics.values()].map((metric) => cloneRecord(metric)),
+      interventions: [...this.interventions.values()].map((intervention) => cloneRecord(intervention)),
+      evaluations: [...this.evaluations.values()].map((evaluation) => cloneRecord(evaluation)),
+      releaseDecisions: [...this.releaseDecisions.values()].map((releaseDecision) => cloneRecord(releaseDecision)),
+    };
+  }
+
   listWorkflows(): Workflow[] {
     return sortByLabel([...this.workflows.values()]).map((workflow) => cloneWorkflow(workflow));
   }
@@ -125,14 +232,16 @@ export class ApiStore {
   }
 
   upsertWorkflow(workflow: Workflow): Workflow {
-    const parsed = workflowSchema.parse(workflow);
-    this.workflows.set(parsed.workflowId, cloneWorkflow(parsed));
+    return this.runMutation(() => {
+      const parsed = workflowSchema.parse(workflow);
+      this.workflows.set(parsed.workflowId, cloneWorkflow(parsed));
 
-    if (!this.studioStates.has(parsed.workflowId)) {
-      this.studioStates.set(parsed.workflowId, studioStateSchema.parse({}));
-    }
+      if (!this.studioStates.has(parsed.workflowId)) {
+        this.studioStates.set(parsed.workflowId, studioStateSchema.parse({}));
+      }
 
-    return cloneWorkflow(parsed);
+      return cloneWorkflow(parsed);
+    });
   }
 
   listRunsByWorkflow(workflowId: string): Run[] {
@@ -149,10 +258,12 @@ export class ApiStore {
   }
 
   upsertRun(run: Run): Run {
-    const parsed = runSchema.parse(run);
-    this.runs.set(parsed.runId, cloneRun(parsed));
+    return this.runMutation(() => {
+      const parsed = runSchema.parse(run);
+      this.runs.set(parsed.runId, cloneRun(parsed));
 
-    return cloneRun(parsed);
+      return cloneRun(parsed);
+    });
   }
 
   getReplay(runId: string): Replay | undefined {
@@ -162,20 +273,22 @@ export class ApiStore {
   }
 
   upsertReplay(replay: Replay): Replay {
-    const parsed = replaySchema.parse(replay);
-    this.workflows.set(parsed.workflow.workflowId, cloneWorkflow(parsed.workflow));
-    this.runs.set(parsed.run.runId, cloneRun(parsed.run));
-    this.replays.set(parsed.run.runId, cloneReplay(parsed));
+    return this.runMutation(() => {
+      const parsed = replaySchema.parse(replay);
+      this.workflows.set(parsed.workflow.workflowId, cloneWorkflow(parsed.workflow));
+      this.runs.set(parsed.run.runId, cloneRun(parsed.run));
+      this.replays.set(parsed.run.runId, cloneReplay(parsed));
 
-    if (parsed.operationalContext?.runId) {
-      this.operationalContexts.set(parsed.operationalContext.runId, cloneRecord(parsed.operationalContext));
-    }
+      if (parsed.operationalContext?.runId) {
+        this.operationalContexts.set(parsed.operationalContext.runId, cloneRecord(parsed.operationalContext));
+      }
 
-    if (parsed.studioState) {
-      this.studioStates.set(parsed.workflow.workflowId, cloneStudioState(parsed.studioState));
-    }
+      if (parsed.studioState) {
+        this.studioStates.set(parsed.workflow.workflowId, cloneStudioState(parsed.studioState));
+      }
 
-    return cloneReplay(parsed);
+      return cloneReplay(parsed);
+    });
   }
 
   getOperationalContext(runId: string): OperationalContext | undefined {
@@ -185,11 +298,13 @@ export class ApiStore {
   }
 
   upsertOperationalContext(operationalContext: OperationalContext): OperationalContext {
-    const parsed = operationalContextSchema.parse(operationalContext);
-    const key = parsed.runId ?? `${parsed.workflowId}:${parsed.generatedAt}`;
-    this.operationalContexts.set(key, cloneRecord(parsed));
+    return this.runMutation(() => {
+      const parsed = operationalContextSchema.parse(operationalContext);
+      const key = parsed.runId ?? `${parsed.workflowId}:${parsed.generatedAt}`;
+      this.operationalContexts.set(key, cloneRecord(parsed));
 
-    return cloneRecord(parsed);
+      return cloneRecord(parsed);
+    });
   }
 
   getStudioState(workflowId: string): StudioState | undefined {
@@ -209,14 +324,16 @@ export class ApiStore {
   }
 
   upsertRuntime(runtime: RuntimeRegistration): RuntimeRegistration {
-    const parsed = runtimeRegistrationSchema.parse(runtime);
-    this.runtimes.set(parsed.runtimeId, cloneRecord(parsed));
+    return this.runMutation(() => {
+      const parsed = runtimeRegistrationSchema.parse(runtime);
+      this.runtimes.set(parsed.runtimeId, cloneRecord(parsed));
 
-    return cloneRecord(parsed);
+      return cloneRecord(parsed);
+    });
   }
 
   upsertRuntimes(runtimes: RuntimeRegistration[]) {
-    return runtimes.map((runtime) => this.upsertRuntime(runtime));
+    return this.runMutation(() => runtimes.map((runtime) => this.upsertRuntime(runtime)));
   }
 
   listSystems(): SystemDefinition[] {
@@ -230,14 +347,16 @@ export class ApiStore {
   }
 
   upsertSystem(system: SystemDefinition): SystemDefinition {
-    const parsed = systemDefinitionSchema.parse(system);
-    this.systems.set(parsed.systemId, cloneRecord(parsed));
+    return this.runMutation(() => {
+      const parsed = systemDefinitionSchema.parse(system);
+      this.systems.set(parsed.systemId, cloneRecord(parsed));
 
-    return cloneRecord(parsed);
+      return cloneRecord(parsed);
+    });
   }
 
   upsertSystems(systems: SystemDefinition[]) {
-    return systems.map((system) => this.upsertSystem(system));
+    return this.runMutation(() => systems.map((system) => this.upsertSystem(system)));
   }
 
   listAgentsBySystem(systemId: string): AgentDefinition[] {
@@ -251,14 +370,16 @@ export class ApiStore {
   }
 
   upsertAgent(agent: AgentDefinition): AgentDefinition {
-    const parsed = agentDefinitionSchema.parse(agent);
-    this.agents.set(parsed.agentId, cloneRecord(parsed));
+    return this.runMutation(() => {
+      const parsed = agentDefinitionSchema.parse(agent);
+      this.agents.set(parsed.agentId, cloneRecord(parsed));
 
-    return cloneRecord(parsed);
+      return cloneRecord(parsed);
+    });
   }
 
   upsertAgents(agents: AgentDefinition[]) {
-    return agents.map((agent) => this.upsertAgent(agent));
+    return this.runMutation(() => agents.map((agent) => this.upsertAgent(agent)));
   }
 
   getLatestTopologySnapshot(systemId: string): TopologySnapshot | undefined {
@@ -269,17 +390,19 @@ export class ApiStore {
   }
 
   upsertTopologySnapshot(snapshot: TopologySnapshot): TopologySnapshot {
-    const parsed = topologySnapshotSchema.parse(snapshot);
-    const current = this.topologySnapshots.get(parsed.systemId) ?? [];
-    const next = current.filter((item) => item.snapshotId !== parsed.snapshotId);
-    next.push(cloneRecord(parsed));
-    this.topologySnapshots.set(parsed.systemId, next);
+    return this.runMutation(() => {
+      const parsed = topologySnapshotSchema.parse(snapshot);
+      const current = this.topologySnapshots.get(parsed.systemId) ?? [];
+      const next = current.filter((item) => item.snapshotId !== parsed.snapshotId);
+      next.push(cloneRecord(parsed));
+      this.topologySnapshots.set(parsed.systemId, next);
 
-    return cloneRecord(parsed);
+      return cloneRecord(parsed);
+    });
   }
 
   upsertTopologySnapshots(snapshots: TopologySnapshot[]) {
-    return snapshots.map((snapshot) => this.upsertTopologySnapshot(snapshot));
+    return this.runMutation(() => snapshots.map((snapshot) => this.upsertTopologySnapshot(snapshot)));
   }
 
   listExecutionsBySystem(systemId: string): ExecutionRecord[] {
@@ -296,14 +419,16 @@ export class ApiStore {
   }
 
   upsertExecution(execution: ExecutionRecord): ExecutionRecord {
-    const parsed = executionRecordSchema.parse(execution);
-    this.executions.set(parsed.executionId, cloneRecord(parsed));
+    return this.runMutation(() => {
+      const parsed = executionRecordSchema.parse(execution);
+      this.executions.set(parsed.executionId, cloneRecord(parsed));
 
-    return cloneRecord(parsed);
+      return cloneRecord(parsed);
+    });
   }
 
   upsertExecutions(executions: ExecutionRecord[]) {
-    return executions.map((execution) => this.upsertExecution(execution));
+    return this.runMutation(() => executions.map((execution) => this.upsertExecution(execution)));
   }
 
   listSpansByExecution(executionId: string): SpanRecord[] {
@@ -314,14 +439,16 @@ export class ApiStore {
   }
 
   upsertSpan(span: SpanRecord): SpanRecord {
-    const parsed = spanRecordSchema.parse(span);
-    this.spans.set(parsed.spanId, cloneRecord(parsed));
+    return this.runMutation(() => {
+      const parsed = spanRecordSchema.parse(span);
+      this.spans.set(parsed.spanId, cloneRecord(parsed));
 
-    return cloneRecord(parsed);
+      return cloneRecord(parsed);
+    });
   }
 
   upsertSpans(spans: SpanRecord[]) {
-    return spans.map((span) => this.upsertSpan(span));
+    return this.runMutation(() => spans.map((span) => this.upsertSpan(span)));
   }
 
   listArtifactsByExecution(executionId: string): ArtifactRecord[] {
@@ -331,14 +458,16 @@ export class ApiStore {
   }
 
   upsertArtifact(artifact: ArtifactRecord): ArtifactRecord {
-    const parsed = artifactRecordSchema.parse(artifact);
-    this.artifacts.set(parsed.artifactId, cloneRecord(parsed));
+    return this.runMutation(() => {
+      const parsed = artifactRecordSchema.parse(artifact);
+      this.artifacts.set(parsed.artifactId, cloneRecord(parsed));
 
-    return cloneRecord(parsed);
+      return cloneRecord(parsed);
+    });
   }
 
   upsertArtifacts(artifacts: ArtifactRecord[]) {
-    return artifacts.map((artifact) => this.upsertArtifact(artifact));
+    return this.runMutation(() => artifacts.map((artifact) => this.upsertArtifact(artifact)));
   }
 
   listMetricsByScope(scopeType: string, scopeId: string): MetricSample[] {
@@ -349,14 +478,16 @@ export class ApiStore {
   }
 
   upsertMetric(metric: MetricSample): MetricSample {
-    const parsed = metricSampleSchema.parse(metric);
-    this.metrics.set(parsed.sampleId, cloneRecord(parsed));
+    return this.runMutation(() => {
+      const parsed = metricSampleSchema.parse(metric);
+      this.metrics.set(parsed.sampleId, cloneRecord(parsed));
 
-    return cloneRecord(parsed);
+      return cloneRecord(parsed);
+    });
   }
 
   upsertMetrics(metrics: MetricSample[]) {
-    return metrics.map((metric) => this.upsertMetric(metric));
+    return this.runMutation(() => metrics.map((metric) => this.upsertMetric(metric)));
   }
 
   listInterventionsBySystem(systemId: string): InterventionRecord[] {
@@ -382,14 +513,16 @@ export class ApiStore {
   }
 
   upsertIntervention(intervention: InterventionRecord): InterventionRecord {
-    const parsed = interventionRecordSchema.parse(intervention);
-    this.interventions.set(parsed.interventionId, cloneRecord(parsed));
+    return this.runMutation(() => {
+      const parsed = interventionRecordSchema.parse(intervention);
+      this.interventions.set(parsed.interventionId, cloneRecord(parsed));
 
-    return cloneRecord(parsed);
+      return cloneRecord(parsed);
+    });
   }
 
   upsertInterventions(interventions: InterventionRecord[]) {
-    return interventions.map((intervention) => this.upsertIntervention(intervention));
+    return this.runMutation(() => interventions.map((intervention) => this.upsertIntervention(intervention)));
   }
 
   listEvaluationsBySystem(systemId: string): EvaluationRecord[] {
@@ -400,14 +533,16 @@ export class ApiStore {
   }
 
   upsertEvaluation(evaluation: EvaluationRecord): EvaluationRecord {
-    const parsed = evaluationRecordSchema.parse(evaluation);
-    this.evaluations.set(parsed.evaluationId, cloneRecord(parsed));
+    return this.runMutation(() => {
+      const parsed = evaluationRecordSchema.parse(evaluation);
+      this.evaluations.set(parsed.evaluationId, cloneRecord(parsed));
 
-    return cloneRecord(parsed);
+      return cloneRecord(parsed);
+    });
   }
 
   upsertEvaluations(evaluations: EvaluationRecord[]) {
-    return evaluations.map((evaluation) => this.upsertEvaluation(evaluation));
+    return this.runMutation(() => evaluations.map((evaluation) => this.upsertEvaluation(evaluation)));
   }
 
   listReleaseDecisionsBySystem(systemId: string): ReleaseDecision[] {
@@ -418,14 +553,16 @@ export class ApiStore {
   }
 
   upsertReleaseDecision(releaseDecision: ReleaseDecision): ReleaseDecision {
-    const parsed = releaseDecisionSchema.parse(releaseDecision);
-    this.releaseDecisions.set(parsed.releaseId, cloneRecord(parsed));
+    return this.runMutation(() => {
+      const parsed = releaseDecisionSchema.parse(releaseDecision);
+      this.releaseDecisions.set(parsed.releaseId, cloneRecord(parsed));
 
-    return cloneRecord(parsed);
+      return cloneRecord(parsed);
+    });
   }
 
   upsertReleaseDecisions(releaseDecisions: ReleaseDecision[]) {
-    return releaseDecisions.map((releaseDecision) => this.upsertReleaseDecision(releaseDecision));
+    return this.runMutation(() => releaseDecisions.map((releaseDecision) => this.upsertReleaseDecision(releaseDecision)));
   }
 
   private buildDemoWorkflowState(workflow: Workflow): DemoStateResponse['workflowStates'][string] | null {

@@ -7,16 +7,27 @@ import { handleReplayRoutes } from './routes/replay.js';
 import { handleRunRoutes } from './routes/runs.js';
 import { handleWorkflowRoutes } from './routes/workflows.js';
 import { errorResponse, jsonResponse, toRequest, writeResponse } from './http.js';
+import { createConfiguredStore, getApiStorageInfo, type ApiStorageInfo } from './persistence.js';
 import { ApiStore } from './store.js';
 
 export interface ApiApp {
   readonly store: ApiStore;
+  readonly storage: ApiStorageInfo;
   handle(request: Request): Promise<Response>;
 }
 
-export function createApiApp(store = new ApiStore()): ApiApp {
+interface CreateApiAppOptions {
+  store?: ApiStore;
+  storage?: ApiStorageInfo;
+}
+
+export function createApiApp(options: CreateApiAppOptions = {}): ApiApp {
+  const store = options.store ?? new ApiStore();
+  const storage = options.storage ?? getApiStorageInfo();
+
   return {
     store,
+    storage,
     async handle(request: Request): Promise<Response> {
       const url = new URL(request.url);
 
@@ -33,6 +44,12 @@ export function createApiApp(store = new ApiStore()): ApiApp {
 
       if (url.pathname === '/health') {
         return jsonResponse({ ok: true });
+      }
+
+      if (request.method === 'GET' && url.pathname === '/api/control/meta') {
+        return jsonResponse({
+          item: storage,
+        });
       }
 
       if (request.method === 'GET') {
@@ -78,7 +95,11 @@ export function createApiApp(store = new ApiStore()): ApiApp {
 }
 
 export function startApiServer(port = Number(process.env.PORT ?? 4000)) {
-  const app = createApiApp();
+  const { store, storage } = createConfiguredStore();
+  const app = createApiApp({
+    store,
+    storage,
+  });
   const server = createServer(async (request, response) => {
     const result = await app.handle(toRequest(request));
     result.headers.set('access-control-allow-origin', '*');

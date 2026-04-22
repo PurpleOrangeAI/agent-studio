@@ -719,7 +719,11 @@ export function App() {
         ) : null}
 
         {selectedView === 'connect' ? (
-          <ConnectPanel selectedSystem={selectedControlPlaneSystem} onRefresh={handleRefreshControlPlane} />
+          <ConnectPanel
+            selectedSystem={selectedControlPlaneSystem}
+            storage={controlPlaneState?.storage ?? null}
+            onRefresh={handleRefreshControlPlane}
+          />
         ) : null}
 
         {selectedView === 'live' && hasRoomProjection && selectedWorkflowState && workflow ? (

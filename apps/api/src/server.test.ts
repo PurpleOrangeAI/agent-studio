@@ -1,5 +1,10 @@
+import { mkdtempSync, rmSync } from 'node:fs';
+import { join } from 'node:path';
+import { tmpdir } from 'node:os';
+
 import { seededOperationalContexts, seededReplays, seededWorkflow } from '@agent-studio/demo';
 
+import { createConfiguredStore } from './persistence';
 import { createApiApp } from './server';
 
 describe('Agent Studio API', () => {
@@ -275,6 +280,84 @@ describe('Agent Studio API', () => {
         ]),
       }),
     );
+  });
+
+  it('persists imported control-plane state when a file store is configured', async () => {
+    const tempDir = mkdtempSync(join(tmpdir(), 'agent-studio-store-'));
+    const env = {
+      ...process.env,
+      AGENT_STUDIO_STORE_FILE: join(tempDir, 'store.json'),
+    };
+
+    try {
+      const firstConfiguredStore = createConfiguredStore(env);
+      const firstApp = createApiApp(firstConfiguredStore);
+
+      const runtimeId = 'runtime_persisted';
+      const systemId = 'system_persisted';
+
+      const runtimeResponse = await firstApp.handle(
+        new Request('http://agent-studio.test/api/control/ingest/runtimes', {
+          method: 'POST',
+          headers: {
+            'content-type': 'application/json',
+          },
+          body: JSON.stringify({
+            runtimeId,
+            kind: 'custom',
+            adapterId: 'persisted-rest',
+            label: 'Persisted runtime',
+          }),
+        }),
+      );
+
+      expect(runtimeResponse.status).toBe(201);
+
+      const systemResponse = await firstApp.handle(
+        new Request('http://agent-studio.test/api/control/ingest/systems', {
+          method: 'POST',
+          headers: {
+            'content-type': 'application/json',
+          },
+          body: JSON.stringify({
+            systemId,
+            workspaceId: 'workspace_persisted',
+            name: 'Persisted system',
+            runtimeIds: [runtimeId],
+          }),
+        }),
+      );
+
+      expect(systemResponse.status).toBe(201);
+
+      const secondConfiguredStore = createConfiguredStore(env);
+      const secondApp = createApiApp(secondConfiguredStore);
+
+      const metaResponse = await secondApp.handle(new Request('http://agent-studio.test/api/control/meta'));
+      expect(metaResponse.status).toBe(200);
+      await expect(metaResponse.json()).resolves.toEqual(
+        expect.objectContaining({
+          item: expect.objectContaining({
+            mode: 'file',
+            persistenceEnabled: true,
+            filePath: env.AGENT_STUDIO_STORE_FILE,
+          }),
+        }),
+      );
+
+      const persistedSystemResponse = await secondApp.handle(new Request(`http://agent-studio.test/api/control/systems/${systemId}`));
+      expect(persistedSystemResponse.status).toBe(200);
+      await expect(persistedSystemResponse.json()).resolves.toEqual(
+        expect.objectContaining({
+          item: expect.objectContaining({
+            systemId,
+            name: 'Persisted system',
+          }),
+        }),
+      );
+    } finally {
+      rmSync(tempDir, { recursive: true, force: true });
+    }
   });
 
   it('rejects ingest payloads that do not match the shared contracts', async () => {
