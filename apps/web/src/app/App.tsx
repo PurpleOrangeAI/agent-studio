@@ -1,5 +1,6 @@
 import { startTransition, useEffect, useState } from 'react';
 
+import { loadControlPlaneState, type ControlPlaneState } from './control-plane';
 import { loadDemoState, type DemoState } from './demo';
 import { formatCredits, formatDuration, titleCaseStatus } from './format';
 import { RoomShell } from './RoomShell';
@@ -125,6 +126,7 @@ const ROOM_COPY: Record<
 
 export function App() {
   const [demoState, setDemoState] = useState<DemoState | null>(null);
+  const [controlPlaneState, setControlPlaneState] = useState<ControlPlaneState | null>(null);
   const [runtimeId, setRuntimeId] = useState<string>('demo');
   const [workflowId, setWorkflowId] = useState<string>('');
   const [selectedRoom, setSelectedRoom] = useState<RoomId>('live');
@@ -139,25 +141,26 @@ export function App() {
   useEffect(() => {
     let cancelled = false;
 
-    loadDemoState()
-      .then((state) => {
+    Promise.allSettled([loadDemoState(), loadControlPlaneState()])
+      .then(([demoResult, controlPlaneResult]) => {
         if (cancelled) {
+          return;
+        }
+
+        if (demoResult.status === 'rejected') {
+          setLoadError(demoResult.reason instanceof Error ? demoResult.reason.message : 'Failed to load demo state.');
           return;
         }
 
         startTransition(() => {
-          setDemoState(state);
-          setRuntimeId(state.runtimeOptions[0]?.id ?? 'demo');
-          setWorkflowId((current) => (current && state.workflowStates[current] ? current : state.defaultWorkflowId));
+          setDemoState(demoResult.value);
+          setRuntimeId(demoResult.value.runtimeOptions[0]?.id ?? 'demo');
+          setWorkflowId((current) =>
+            current && demoResult.value.workflowStates[current] ? current : demoResult.value.defaultWorkflowId,
+          );
+          setControlPlaneState(controlPlaneResult.status === 'fulfilled' ? controlPlaneResult.value : null);
           setLoadError(null);
         });
-      })
-      .catch((error: unknown) => {
-        if (cancelled) {
-          return;
-        }
-
-        setLoadError(error instanceof Error ? error.message : 'Failed to load demo state.');
       });
 
     return () => {
@@ -217,6 +220,7 @@ export function App() {
     ((candidateRun.durationMs ?? 0) - (selectedWorkflowState.optimize.baselineRun.durationMs ?? 0)) / 1000,
   );
   const selectedRuntime = demoState.runtimeOptions.find((option) => option.id === runtimeId);
+  const selectedControlPlaneSystem = controlPlaneState?.systemsByWorkflowId[workflow.workflowId] ?? null;
 
   const controlLoopCue: ControlLoopCue =
     selectedRoom === 'live'
@@ -487,7 +491,12 @@ export function App() {
             openLabel={ROOM_COPY.live.openLabel}
             closeLabel={ROOM_COPY.live.closeLabel}
           >
-            <LivePanel workflow={workflow} run={selectedWorkflowState.live.run} replay={selectedWorkflowState.live.replay} />
+            <LivePanel
+              workflow={workflow}
+              run={selectedWorkflowState.live.run}
+              replay={selectedWorkflowState.live.replay}
+              controlPlane={selectedControlPlaneSystem}
+            />
           </RoomShell>
         ) : null}
 

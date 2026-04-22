@@ -1,3 +1,4 @@
+import type { ControlPlaneSystemState } from '../../app/control-plane';
 import type { Replay, Run, Workflow } from '@agent-studio/contracts';
 
 import { formatCredits, formatDateTime, formatDuration, titleCaseStatus } from '../../app/format';
@@ -7,13 +8,17 @@ interface LivePanelProps {
   workflow: Workflow;
   run: Run;
   replay: Replay;
+  controlPlane?: ControlPlaneSystemState | null;
 }
 
-export function LivePanel({ workflow, run, replay }: LivePanelProps) {
+export function LivePanel({ workflow, run, replay, controlPlane }: LivePanelProps) {
   const topSignal = replay.operationalContext?.similarRuns[0];
   const healthyAnchor = replay.operationalContext?.lastHealthyComparison;
   const recommendation = replay.operationalContext?.recommendationEvidence[0];
   const directiveCount = Object.keys(replay.studioState?.roleDirectives ?? {}).length;
+  const systemAgentCount = controlPlane?.agents.length ?? null;
+  const systemExecutionCount = controlPlane?.executions.length ?? null;
+  const systemReleaseCount = controlPlane?.releases.length ?? null;
 
   return (
     <div className="room-stack">
@@ -73,9 +78,19 @@ export function LivePanel({ workflow, run, replay }: LivePanelProps) {
             </p>
           </div>
         ) : null}
+        {controlPlane ? (
+          <div className="inline-callout">
+            <span className="eyebrow">Control-plane view</span>
+            <p>
+              This workflow now maps to <strong>{controlPlane.system.name}</strong> with{' '}
+              <strong>{systemAgentCount}</strong> registered agents, <strong>{systemExecutionCount}</strong> tracked
+              executions, and <strong>{systemReleaseCount}</strong> recorded release decisions.
+            </p>
+          </div>
+        ) : null}
       </section>
 
-      <LiveAgentTopologySection workflow={workflow} run={run} replay={replay} />
+      <LiveAgentTopologySection workflow={workflow} run={run} replay={replay} controlPlane={controlPlane} />
 
       <section className="surface surface--sequence">
         <div className="section-header">

@@ -1,11 +1,13 @@
 import { vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
 
+import type { ControlPlaneState } from './control-plane';
 import type { DemoState } from './demo';
 import { App } from './App';
 
-const { loadDemoStateMock } = vi.hoisted(() => ({
+const { loadDemoStateMock, loadControlPlaneStateMock } = vi.hoisted(() => ({
   loadDemoStateMock: vi.fn(),
+  loadControlPlaneStateMock: vi.fn(),
 }));
 
 const demoStateFixture: DemoState = {
@@ -179,13 +181,56 @@ const demoStateFixture: DemoState = {
   },
 };
 
+const controlPlaneFixture: ControlPlaneState = {
+  runtimes: [
+    {
+      runtimeId: 'runtime_demo_seeded',
+      kind: 'demo',
+      adapterId: 'seeded-demo',
+      label: 'Seeded demo runtime',
+    },
+  ],
+  systems: [
+    {
+      system: {
+        systemId: 'system_workflow_ops_brief',
+        workspaceId: 'workspace_demo',
+        name: 'Weekly Operations Brief',
+        runtimeIds: ['runtime_demo_seeded'],
+        metadata: {
+          workflowId: 'workflow_ops_brief',
+        },
+      },
+      agents: [],
+      topology: null,
+      executions: [],
+      executionSpans: {},
+      executionMetrics: {},
+      interventions: [],
+      evaluations: [],
+      releases: [],
+    },
+  ],
+  systemsByWorkflowId: {},
+};
+
 vi.mock('./demo', () => ({
   loadDemoState: loadDemoStateMock,
+}));
+
+vi.mock('./control-plane', () => ({
+  loadControlPlaneState: loadControlPlaneStateMock,
 }));
 
 describe('App shell', () => {
   beforeEach(() => {
     loadDemoStateMock.mockResolvedValue(demoStateFixture);
+    loadControlPlaneStateMock.mockResolvedValue({
+      ...controlPlaneFixture,
+      systemsByWorkflowId: {
+        workflow_ops_brief: controlPlaneFixture.systems[0],
+      },
+    });
   });
 
   it('renders the seeded demo control loop', async () => {

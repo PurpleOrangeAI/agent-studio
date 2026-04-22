@@ -1,21 +1,30 @@
 import { useEffect, useRef, useState } from 'react';
 
-import type { DirectiveMode, Replay, Run, Workflow, WorkflowStep } from '@agent-studio/contracts';
+import type {
+  DirectiveMode,
+  Replay,
+  Run,
+  TopologyEdge,
+  Workflow,
+  WorkflowStep,
+} from '@agent-studio/contracts';
 
+import type { ControlPlaneSystemState } from '../../app/control-plane';
 import { formatCredits, formatDuration, titleCaseStatus } from '../../app/format';
 
 interface LiveAgentTopologySectionProps {
   workflow: Workflow;
   run: Run;
   replay: Replay;
+  controlPlane?: ControlPlaneSystemState | null;
 }
 
-type RoleNodeStatus = 'active' | 'failed' | 'standby';
+type NodeStatus = 'active' | 'failed' | 'standby';
 
-type RoleNode = {
-  role: string;
+type DisplayNode = {
+  id: string;
   label: string;
-  status: RoleNodeStatus;
+  status: NodeStatus;
   directiveMode?: DirectiveMode;
   phases: string[];
   summary: string;
@@ -26,13 +35,19 @@ type RoleNode = {
   y: number;
 };
 
+type DisplayEdge = {
+  id: string;
+  sourceId: string;
+  targetId: string;
+};
+
 type NodePosition = {
   x: number;
   y: number;
 };
 
 type DragState = {
-  role: string;
+  nodeId: string;
   pointerId: number;
 };
 
@@ -76,7 +91,50 @@ function formatRoleLabel(role: string) {
     .join(' ');
 }
 
-function buildRoleNodes(workflow: Workflow, replay: Replay): RoleNode[] {
+function formatDirectiveMode(mode?: DirectiveMode) {
+  if (!mode) {
+    return 'Steady';
+  }
+
+  if (mode === 'promote') {
+    return 'Promoted';
+  }
+
+  return mode.charAt(0).toUpperCase() + mode.slice(1);
+}
+
+function parseDirectiveMode(action?: string): DirectiveMode | undefined {
+  if (!action?.startsWith('directive.')) {
+    return undefined;
+  }
+
+  const mode = action.slice('directive.'.length);
+  if (mode === 'cheaper' || mode === 'review' || mode === 'promote') {
+    return mode;
+  }
+
+  return undefined;
+}
+
+function getPresetPosition(count: number, index: number) {
+  const preset = POSITION_PRESETS[count]?.[index];
+  if (preset) {
+    return {
+      x: preset[0],
+      y: preset[1],
+    };
+  }
+
+  const angle = (-Math.PI / 2) + ((Math.PI * 2) / Math.max(count, 1)) * index;
+  const radius = count <= 4 ? 31 : 39;
+
+  return {
+    x: 50 + Math.cos(angle) * radius,
+    y: 50 + Math.sin(angle) * radius,
+  };
+}
+
+function buildLegacyNodes(workflow: Workflow, replay: Replay): DisplayNode[] {
   const workflowStepsByRole = new Map<string, WorkflowStep[]>();
 
   for (const step of workflow.steps) {
@@ -91,27 +149,20 @@ function buildRoleNodes(workflow: Workflow, replay: Replay): RoleNode[] {
     const executedSteps = replay.stepExecutions.filter((step) => step.assignedRole === role);
     const directiveMode =
       replay.studioState?.roleDirectives?.[role]?.mode ?? executedSteps.find((step) => step.directiveMode)?.directiveMode;
-
     const failedStep = executedSteps.find((step) => step.status === 'failed');
     const activeStep = executedSteps.find((step) => step.status === 'running') ?? executedSteps[executedSteps.length - 1];
-
-    const status: RoleNodeStatus = failedStep
+    const status: NodeStatus = failedStep
       ? 'failed'
       : executedSteps.some((step) => step.status === 'running' || step.status === 'succeeded')
         ? 'active'
         : 'standby';
-
     const totalCredits = executedSteps.reduce((sum, step) => sum + (step.actualCredits ?? 0), 0);
     const totalDuration = executedSteps.reduce((sum, step) => sum + (step.durationMs ?? 0), 0);
     const phases = Array.from(new Set(steps.map((step) => step.kind)));
-    const preset = POSITION_PRESETS[roles.length]?.[index];
-    const angle = (-Math.PI / 2) + ((Math.PI * 2) / Math.max(roles.length, 1)) * index;
-    const radius = roles.length <= 4 ? 31 : 39;
-    const fallbackLeft = 50 + Math.cos(angle) * radius;
-    const fallbackTop = 50 + Math.sin(angle) * radius;
+    const position = getPresetPosition(roles.length, index);
 
     return {
-      role,
+      id: role,
       label: formatRoleLabel(role),
       status,
       directiveMode,
@@ -125,25 +176,13 @@ function buildRoleNodes(workflow: Workflow, replay: Replay): RoleNode[] {
       durationMs: totalDuration || undefined,
       credits: totalCredits || undefined,
       stepCount: steps.length,
-      x: preset?.[0] ?? fallbackLeft,
-      y: preset?.[1] ?? fallbackTop,
+      x: position.x,
+      y: position.y,
     };
   });
 }
 
-function formatDirectiveMode(mode?: DirectiveMode) {
-  if (!mode) {
-    return 'Steady';
-  }
-
-  if (mode === 'promote') {
-    return 'Promoted';
-  }
-
-  return mode.charAt(0).toUpperCase() + mode.slice(1);
-}
-
-function getBottleneckRole(replay: Replay, roleNodes: RoleNode[]) {
+function buildLegacyBottleneckId(replay: Replay, nodes: DisplayNode[]) {
   const failedStep = replay.stepExecutions.find((step) => step.status === 'failed');
   if (failedStep?.assignedRole) {
     return failedStep.assignedRole;
@@ -159,23 +198,110 @@ function getBottleneckRole(replay: Replay, roleNodes: RoleNode[]) {
     return matchingExecution.assignedRole;
   }
 
-  return roleNodes.find((node) => node.phases.includes(recommendationPhase))?.role ?? null;
+  return nodes.find((node) => node.phases.includes(recommendationPhase))?.id ?? null;
 }
 
-function buildLinkPath(x: number, y: number) {
+function buildControlPlaneNodes(controlPlane: ControlPlaneSystemState, run: Run): DisplayNode[] {
+  const topology = controlPlane.topology;
+  if (!topology) {
+    return [];
+  }
+
+  const execution = controlPlane.executions.find((item) => item.runId === run.runId) ?? controlPlane.executions[0];
+  const spans = execution ? controlPlane.executionSpans[execution.executionId] ?? [] : [];
+
+  return topology.nodes.map((node, index) => {
+    const agent = node.agentId ? controlPlane.agents.find((item) => item.agentId === node.agentId) : undefined;
+    const nodeSpans = spans.filter((span) => span.nodeId === node.nodeId || (agent?.agentId && span.agentId === agent.agentId));
+    const latestSpan = nodeSpans[nodeSpans.length - 1];
+    const failedSpan = nodeSpans.find((span) => span.status === 'failed');
+    const latestIntervention = [...controlPlane.interventions]
+      .filter((intervention) => intervention.targetScopeType === 'agent' && intervention.targetScopeId === agent?.agentId)
+      .sort((left, right) => right.requestedAt.localeCompare(left.requestedAt))[0];
+    const status: NodeStatus = failedSpan ? 'failed' : nodeSpans.length > 0 ? 'active' : 'standby';
+    const phases = Array.from(new Set(nodeSpans.map((span) => span.kind).concat(agent?.capabilities ?? [])));
+    const credits = nodeSpans.reduce((sum, span) => sum + (span.usage?.credits ?? 0), 0);
+    const durationMs = nodeSpans.reduce((sum, span) => sum + (span.usage?.durationMs ?? 0), 0);
+    const position = getPresetPosition(topology.nodes.length, index);
+    const agentStepCount =
+      agent?.metadata && typeof agent.metadata === 'object' && !Array.isArray(agent.metadata)
+        ? Number((agent.metadata as Record<string, unknown>).stepCount ?? 0)
+        : 0;
+
+    return {
+      id: node.nodeId,
+      label: node.label,
+      status,
+      directiveMode: parseDirectiveMode(latestIntervention?.action),
+      phases,
+      summary:
+        failedSpan?.summary ??
+        latestSpan?.summary ??
+        (typeof agent?.metadata === 'object' && agent?.metadata && !Array.isArray(agent.metadata)
+          ? ((agent.metadata as Record<string, unknown>).workflowId as string | undefined)
+          : undefined) ??
+        `No execution has been recorded for ${node.label} yet.`,
+      durationMs: durationMs || undefined,
+      credits: credits || undefined,
+      stepCount: nodeSpans.length || agentStepCount || 1,
+      x: position.x,
+      y: position.y,
+    };
+  });
+}
+
+function buildControlPlaneEdges(controlPlane: ControlPlaneSystemState): DisplayEdge[] {
+  const topology = controlPlane.topology;
+  if (!topology) {
+    return [];
+  }
+
+  return topology.edges.map((edge: TopologyEdge) => ({
+    id: edge.edgeId,
+    sourceId: edge.sourceNodeId,
+    targetId: edge.targetNodeId,
+  }));
+}
+
+function buildControlPlaneBottleneckId(controlPlane: ControlPlaneSystemState, run: Run, replay: Replay, nodes: DisplayNode[]) {
+  const execution = controlPlane.executions.find((item) => item.runId === run.runId) ?? controlPlane.executions[0];
+  const spans = execution ? controlPlane.executionSpans[execution.executionId] ?? [] : [];
+  const failedSpan = spans.find((span) => span.status === 'failed');
+
+  if (failedSpan?.nodeId) {
+    return failedSpan.nodeId;
+  }
+
+  if (failedSpan?.agentId) {
+    return controlPlane.topology?.nodes.find((node) => node.agentId === failedSpan.agentId)?.nodeId ?? null;
+  }
+
+  const recommendationPhase = replay.operationalContext?.recommendationEvidence[0]?.phase;
+  if (!recommendationPhase) {
+    return null;
+  }
+
+  return nodes.find((node) => node.phases.includes(recommendationPhase))?.id ?? null;
+}
+
+function buildCoreLinkPath(x: number, y: number) {
   const controlX = x < 50 ? 36 : 64;
   const controlY = y < 50 ? 34 : 66;
 
   return `M 50 50 C ${controlX} ${controlY}, ${x} ${y}, ${x} ${y}`;
 }
 
-function getStoredPositions(workflowId: string): Record<string, NodePosition> | null {
+function buildNodeLinkPath(source: NodePosition, target: NodePosition) {
+  return `M ${source.x} ${source.y} Q 50 50 ${target.x} ${target.y}`;
+}
+
+function getStoredPositions(storageKey: string): Record<string, NodePosition> | null {
   if (typeof window === 'undefined') {
     return null;
   }
 
   try {
-    const raw = window.localStorage.getItem(`${POSITION_STORAGE_PREFIX}${workflowId}`);
+    const raw = window.localStorage.getItem(`${POSITION_STORAGE_PREFIX}${storageKey}`);
     if (!raw) {
       return null;
     }
@@ -186,38 +312,38 @@ function getStoredPositions(workflowId: string): Record<string, NodePosition> | 
   }
 }
 
-function storePositions(workflowId: string, positions: Record<string, NodePosition>) {
+function storePositions(storageKey: string, positions: Record<string, NodePosition>) {
   if (typeof window === 'undefined') {
     return;
   }
 
   try {
-    window.localStorage.setItem(`${POSITION_STORAGE_PREFIX}${workflowId}`, JSON.stringify(positions));
+    window.localStorage.setItem(`${POSITION_STORAGE_PREFIX}${storageKey}`, JSON.stringify(positions));
   } catch {
     // Ignore storage failures in demo mode.
   }
 }
 
-function getStoredLayoutMode(workflowId: string): LayoutMode | null {
+function getStoredLayoutMode(storageKey: string): LayoutMode | null {
   if (typeof window === 'undefined') {
     return null;
   }
 
   try {
-    const raw = window.localStorage.getItem(`${MODE_STORAGE_PREFIX}${workflowId}`);
+    const raw = window.localStorage.getItem(`${MODE_STORAGE_PREFIX}${storageKey}`);
     return raw === 'free' || raw === 'orbit' ? raw : null;
   } catch {
     return null;
   }
 }
 
-function storeLayoutMode(workflowId: string, mode: LayoutMode) {
+function storeLayoutMode(storageKey: string, mode: LayoutMode) {
   if (typeof window === 'undefined') {
     return;
   }
 
   try {
-    window.localStorage.setItem(`${MODE_STORAGE_PREFIX}${workflowId}`, mode);
+    window.localStorage.setItem(`${MODE_STORAGE_PREFIX}${storageKey}`, mode);
   } catch {
     // Ignore storage failures in demo mode.
   }
@@ -227,37 +353,44 @@ function clamp(value: number, min: number, max: number) {
   return Math.min(max, Math.max(min, value));
 }
 
-export function LiveAgentTopologySection({ workflow, run, replay }: LiveAgentTopologySectionProps) {
-  const roleNodes = buildRoleNodes(workflow, replay);
-  const roleSignature = roleNodes.map((node) => node.role).join('|');
-  const activeCount = roleNodes.filter((node) => node.status === 'active').length;
-  const failedCount = roleNodes.filter((node) => node.status === 'failed').length;
-  const phaseCount = new Set(workflow.steps.map((step) => step.kind)).size;
+export function LiveAgentTopologySection({ workflow, run, replay, controlPlane }: LiveAgentTopologySectionProps) {
+  const topologyNodes = controlPlane ? buildControlPlaneNodes(controlPlane, run) : [];
+  const nodes = topologyNodes.length > 0 ? topologyNodes : buildLegacyNodes(workflow, replay);
+  const edges = controlPlane && topologyNodes.length > 0 ? buildControlPlaneEdges(controlPlane) : [];
+  const nodeSignature = nodes.map((node) => node.id).join('|');
+  const activeCount = nodes.filter((node) => node.status === 'active').length;
+  const failedCount = nodes.filter((node) => node.status === 'failed').length;
+  const phaseCount = new Set(nodes.flatMap((node) => node.phases)).size || new Set(workflow.steps.map((step) => step.kind)).size;
   const similarRun = replay.operationalContext?.similarRuns[0];
   const healthyAnchor = replay.operationalContext?.lastHealthyComparison;
   const recommendation = replay.operationalContext?.recommendationEvidence[0];
-  const directiveCount = Object.keys(replay.studioState?.roleDirectives ?? {}).length;
-  const bottleneckRole = getBottleneckRole(replay, roleNodes);
-  const bottleneckLabel = roleNodes.find((node) => node.role === bottleneckRole)?.label ?? null;
+  const directiveCount = controlPlane
+    ? controlPlane.interventions.filter((intervention) => intervention.action.startsWith('directive.')).length
+    : Object.keys(replay.studioState?.roleDirectives ?? {}).length;
+  const bottleneckId = controlPlane && topologyNodes.length > 0
+    ? buildControlPlaneBottleneckId(controlPlane, run, replay, nodes)
+    : buildLegacyBottleneckId(replay, nodes);
+  const bottleneckLabel = nodes.find((node) => node.id === bottleneckId)?.label ?? null;
   const canvasRef = useRef<HTMLDivElement | null>(null);
   const dragStateRef = useRef<DragState | null>(null);
-  const [draggingRole, setDraggingRole] = useState<string | null>(null);
+  const [draggingNodeId, setDraggingNodeId] = useState<string | null>(null);
   const [nodePositions, setNodePositions] = useState<Record<string, NodePosition>>({});
   const [layoutMode, setLayoutMode] = useState<LayoutMode>('orbit');
+  const storageKey = controlPlane?.system.systemId ?? workflow.workflowId;
 
   useEffect(() => {
-    setLayoutMode(getStoredLayoutMode(workflow.workflowId) ?? 'orbit');
-  }, [workflow.workflowId]);
+    setLayoutMode(getStoredLayoutMode(storageKey) ?? 'orbit');
+  }, [storageKey]);
 
   useEffect(() => {
-    const stored = getStoredPositions(workflow.workflowId);
+    const stored = getStoredPositions(storageKey);
     const nextPositions = Object.fromEntries(
-      roleNodes.map((node) => [
-        node.role,
-        layoutMode === 'free' && stored?.[node.role]
+      nodes.map((node) => [
+        node.id,
+        layoutMode === 'free' && stored?.[node.id]
           ? {
-              x: clamp(stored[node.role].x, 10, 90),
-              y: clamp(stored[node.role].y, 12, 88),
+              x: clamp(stored[node.id].x, 10, 90),
+              y: clamp(stored[node.id].y, 12, 88),
             }
           : {
               x: node.x,
@@ -267,7 +400,7 @@ export function LiveAgentTopologySection({ workflow, run, replay }: LiveAgentTop
     );
 
     setNodePositions(nextPositions);
-  }, [workflow.workflowId, roleSignature, layoutMode]);
+  }, [storageKey, nodeSignature, layoutMode]);
 
   useEffect(() => {
     if (!Object.keys(nodePositions).length) {
@@ -275,16 +408,16 @@ export function LiveAgentTopologySection({ workflow, run, replay }: LiveAgentTop
     }
 
     if (layoutMode === 'free') {
-      storePositions(workflow.workflowId, nodePositions);
+      storePositions(storageKey, nodePositions);
     }
-  }, [layoutMode, nodePositions, workflow.workflowId]);
+  }, [layoutMode, nodePositions, storageKey]);
 
   useEffect(() => {
-    storeLayoutMode(workflow.workflowId, layoutMode);
-  }, [layoutMode, workflow.workflowId]);
+    storeLayoutMode(storageKey, layoutMode);
+  }, [layoutMode, storageKey]);
 
   useEffect(() => {
-    if (!draggingRole || layoutMode !== 'free') {
+    if (!draggingNodeId || layoutMode !== 'free') {
       return;
     }
 
@@ -296,13 +429,12 @@ export function LiveAgentTopologySection({ workflow, run, replay }: LiveAgentTop
       const rect = canvasRef.current.getBoundingClientRect();
       const paddingX = Math.max(8, Math.min(14, (96 / rect.width) * 100));
       const paddingY = Math.max(10, Math.min(16, (96 / rect.height) * 100));
-
       const x = clamp(((clientX - rect.left) / rect.width) * 100, paddingX, 100 - paddingX);
       const y = clamp(((clientY - rect.top) / rect.height) * 100, paddingY, 100 - paddingY);
 
       setNodePositions((current) => ({
         ...current,
-        [dragStateRef.current!.role]: {
+        [dragStateRef.current!.nodeId]: {
           x,
           y,
         },
@@ -325,7 +457,7 @@ export function LiveAgentTopologySection({ workflow, run, replay }: LiveAgentTop
 
       updateFromPointer(event.pointerId, event.clientX, event.clientY);
       dragStateRef.current = null;
-      setDraggingRole(null);
+      setDraggingNodeId(null);
     }
 
     window.addEventListener('pointermove', handlePointerMove, { passive: false });
@@ -337,12 +469,12 @@ export function LiveAgentTopologySection({ workflow, run, replay }: LiveAgentTop
       window.removeEventListener('pointerup', handlePointerEnd);
       window.removeEventListener('pointercancel', handlePointerEnd);
     };
-  }, [draggingRole]);
+  }, [draggingNodeId, layoutMode]);
 
   function snapToOrbit() {
     const nextPositions = Object.fromEntries(
-      roleNodes.map((node) => [
-        node.role,
+      nodes.map((node) => [
+        node.id,
         {
           x: node.x,
           y: node.y,
@@ -351,16 +483,18 @@ export function LiveAgentTopologySection({ workflow, run, replay }: LiveAgentTop
     );
 
     dragStateRef.current = null;
-    setDraggingRole(null);
+    setDraggingNodeId(null);
     setNodePositions(nextPositions);
     setLayoutMode('orbit');
   }
 
   function switchToFreeArrange() {
     dragStateRef.current = null;
-    setDraggingRole(null);
+    setDraggingNodeId(null);
     setLayoutMode('free');
   }
+
+  const nodeById = new Map(nodes.map((node) => [node.id, node] as const));
 
   return (
     <section className="surface surface--topology">
@@ -399,65 +533,80 @@ export function LiveAgentTopologySection({ workflow, run, replay }: LiveAgentTop
         </div>
       </div>
       <p className="feature-summary">
-        This is the piece the standalone demo was missing: the live command core in the middle, the active specialist
-        lanes around it, and the strongest system signals next to the map.
+        {controlPlane
+          ? 'This topology now reads the control-plane model directly: registered agents, topology snapshot, current execution, and recent interventions.'
+          : 'This is the piece the standalone demo was missing: the live command core in the middle, the active specialist lanes around it, and the strongest system signals next to the map.'}
       </p>
       <p className="live-topology__hint">
-        {draggingRole
-          ? `Arranging ${roleNodes.find((node) => node.role === draggingRole)?.label ?? 'agent'}`
+        {draggingNodeId
+          ? `Arranging ${nodes.find((node) => node.id === draggingNodeId)?.label ?? 'agent'}`
           : bottleneckLabel
             ? layoutMode === 'free'
               ? `Current pressure point: ${bottleneckLabel}. Drag any agent card to rearrange the layout, or snap back to orbit at any time.`
               : `Current pressure point: ${bottleneckLabel}. Switch to Free arrange if you want to move the agents manually.`
             : layoutMode === 'free'
-              ? 'Drag any agent card to rearrange the operating layout. Your layout stays in the browser for this workflow.'
+              ? 'Drag any agent card to rearrange the operating layout. Your layout stays in the browser for this system.'
               : 'Orbit mode keeps the topology in its canonical layout. Switch to Free arrange to move the agents manually.'}
       </p>
 
       <div className="live-topology">
         <div
           ref={canvasRef}
-          className={`live-topology__canvas ${layoutMode === 'free' ? 'live-topology__canvas--free' : 'live-topology__canvas--orbit'} ${draggingRole ? 'live-topology__canvas--dragging' : ''}`}
+          className={`live-topology__canvas ${layoutMode === 'free' ? 'live-topology__canvas--free' : 'live-topology__canvas--orbit'} ${draggingNodeId ? 'live-topology__canvas--dragging' : ''}`}
         >
           <div className="live-topology__orbit live-topology__orbit--outer" />
           <div className="live-topology__orbit live-topology__orbit--inner" />
           <div className="live-topology__glow" />
           <svg className="live-topology__links" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
-            {roleNodes.map((node, index) => {
-              const position = nodePositions[node.role] ?? { x: node.x, y: node.y };
-              const isBottleneck = node.role === bottleneckRole;
-              const isDragged = draggingRole === node.role;
-              const path = buildLinkPath(position.x, position.y);
+            {(edges.length > 0
+              ? edges.map((edge, index) => ({ edge, index }))
+              : nodes.map((node, index) => ({ edge: { id: `core-${node.id}`, sourceId: 'core', targetId: node.id }, index }))
+            ).map(({ edge, index }) => {
+              const sourceNode = edge.sourceId === 'core' ? null : nodeById.get(edge.sourceId);
+              const sourcePosition =
+                edge.sourceId === 'core'
+                  ? { x: 50, y: 50 }
+                  : nodePositions[edge.sourceId] ?? (sourceNode ? { x: sourceNode.x, y: sourceNode.y } : { x: 50, y: 50 });
+              const targetNode = nodeById.get(edge.targetId);
+              const targetPosition = nodePositions[edge.targetId] ?? (targetNode ? { x: targetNode.x, y: targetNode.y } : { x: 50, y: 50 });
+              const path =
+                edge.sourceId === 'core'
+                  ? buildCoreLinkPath(targetPosition.x, targetPosition.y)
+                  : buildNodeLinkPath(sourcePosition, targetPosition);
+              const touchesBottleneck = edge.sourceId === bottleneckId || edge.targetId === bottleneckId;
+              const touchesDragged = edge.sourceId === draggingNodeId || edge.targetId === draggingNodeId;
+              const failedEdge = sourceNode?.status === 'failed' || targetNode?.status === 'failed';
+              const activeEdge = sourceNode?.status === 'active' || targetNode?.status === 'active' || edge.sourceId === 'core';
               const toneClass =
-                node.status === 'failed'
+                failedEdge
                   ? 'live-topology__link--failed'
-                  : isDragged
+                  : touchesDragged
                     ? 'live-topology__link--dragging'
-                  : isBottleneck
-                    ? 'live-topology__link--bottleneck'
-                    : node.status === 'active'
-                      ? 'live-topology__link--active'
-                      : 'live-topology__link--standby';
+                    : touchesBottleneck
+                      ? 'live-topology__link--bottleneck'
+                      : activeEdge
+                        ? 'live-topology__link--active'
+                        : 'live-topology__link--standby';
 
               return (
-                <g key={`link-${node.role}`}>
+                <g key={`link-${edge.id}`}>
                   <path className={`live-topology__link live-topology__link-glow ${toneClass}`} d={path} />
                   <path className={`live-topology__link live-topology__link-line ${toneClass}`} d={path} />
-                  {node.status !== 'standby' || isBottleneck ? (
+                  {activeEdge || touchesBottleneck ? (
                     <>
                       <circle
-                        className={`live-topology__packet ${isBottleneck ? 'live-topology__packet--bottleneck' : node.status === 'failed' ? 'live-topology__packet--failed' : 'live-topology__packet--active'} ${isDragged ? 'live-topology__packet--dragging' : ''}`}
-                        r={isBottleneck ? 0.95 : 0.72}
+                        className={`live-topology__packet ${touchesBottleneck ? 'live-topology__packet--bottleneck' : failedEdge ? 'live-topology__packet--failed' : 'live-topology__packet--active'} ${touchesDragged ? 'live-topology__packet--dragging' : ''}`}
+                        r={touchesBottleneck ? 0.95 : 0.72}
                       >
                         <animateMotion
                           path={path}
-                          dur={isDragged ? '1.6s' : isBottleneck ? '2.1s' : '3.2s'}
+                          dur={touchesDragged ? '1.6s' : touchesBottleneck ? '2.1s' : '3.2s'}
                           begin={`${index * 0.35}s`}
                           repeatCount="indefinite"
                           rotate="auto"
                         />
                       </circle>
-                      {isBottleneck ? (
+                      {touchesBottleneck ? (
                         <circle className="live-topology__packet live-topology__packet--bottleneck" r={0.62}>
                           <animateMotion
                             path={path}
@@ -476,8 +625,8 @@ export function LiveAgentTopologySection({ workflow, run, replay }: LiveAgentTop
           </svg>
           <div className="live-topology__core">
             <p className="eyebrow">Control core</p>
-            <strong>{workflow.name}</strong>
-            <p>{workflow.description ?? 'Multi-agent workflow with a guarded operator loop.'}</p>
+            <strong>{controlPlane?.system.name ?? workflow.name}</strong>
+            <p>{controlPlane?.system.description ?? workflow.description ?? 'Multi-agent workflow with a guarded operator loop.'}</p>
             <div className="live-topology__core-meta">
               <span className="meta-chip">{workflow.policy?.optimizationGoal?.replace('_', ' ') ?? 'balanced'}</span>
               <span className="meta-chip">{workflow.policy?.reviewPolicy ?? 'standard'} review</span>
@@ -485,14 +634,14 @@ export function LiveAgentTopologySection({ workflow, run, replay }: LiveAgentTop
             </div>
           </div>
 
-          {roleNodes.map((node, index) => {
-            const position = nodePositions[node.role] ?? { x: node.x, y: node.y };
-            const isDragging = draggingRole === node.role;
-            const isBottleneck = node.role === bottleneckRole;
+          {nodes.map((node, index) => {
+            const position = nodePositions[node.id] ?? { x: node.x, y: node.y };
+            const isDragging = draggingNodeId === node.id;
+            const isBottleneck = node.id === bottleneckId;
 
             return (
               <article
-                key={node.role}
+                key={node.id}
                 className={`live-node live-node--${node.status} ${isBottleneck ? 'live-node--bottleneck' : ''} ${isDragging ? 'live-node--dragging' : ''}`}
                 style={{
                   left: `${position.x}%`,
@@ -506,16 +655,16 @@ export function LiveAgentTopologySection({ workflow, run, replay }: LiveAgentTop
                   }
 
                   dragStateRef.current = {
-                    role: node.role,
+                    nodeId: node.id,
                     pointerId: event.pointerId,
                   };
-                  setDraggingRole(node.role);
+                  setDraggingNodeId(node.id);
                 }}
               >
                 <div className="live-node__header">
                   <div>
                     <p className="live-node__label">{node.label}</p>
-                    <p className="live-node__meta">{node.stepCount} mapped steps</p>
+                    <p className="live-node__meta">{node.stepCount} tracked events</p>
                   </div>
                   <span className={`live-node__status live-node__status--${node.status}`} />
                 </div>
@@ -524,7 +673,7 @@ export function LiveAgentTopologySection({ workflow, run, replay }: LiveAgentTop
                 <div className="live-node__tags">
                   <span className="meta-chip">{formatDirectiveMode(node.directiveMode)}</span>
                   {node.phases.slice(0, 2).map((phase) => (
-                    <span key={`${node.role}-${phase}`} className="meta-chip">
+                    <span key={`${node.id}-${phase}`} className="meta-chip">
                       {phase}
                     </span>
                   ))}
@@ -565,7 +714,7 @@ export function LiveAgentTopologySection({ workflow, run, replay }: LiveAgentTop
 
       <div className="live-topology__footer">
         <div className="mini-surface live-topology__stat">
-          <p className="eyebrow">Active roles</p>
+          <p className="eyebrow">Active agents</p>
           <strong>{activeCount}</strong>
         </div>
         <div className="mini-surface live-topology__stat">
@@ -573,7 +722,7 @@ export function LiveAgentTopologySection({ workflow, run, replay }: LiveAgentTop
           <strong>{failedCount}</strong>
         </div>
         <div className="mini-surface live-topology__stat">
-          <p className="eyebrow">Workflow phases</p>
+          <p className="eyebrow">Tracked phases</p>
           <strong>{phaseCount}</strong>
         </div>
         <div className="mini-surface live-topology__stat">
