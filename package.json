@@ -9,5 +9,9 @@
     "build": "corepack pnpm -r --if-present build",
     "lint": "corepack pnpm -r --if-present lint",
     "test": "corepack pnpm -r --if-present test"
+  },
+  "devDependencies": {
+    "@types/node": "^22.15.29",
+    "typescript": "^5.6.3"
   }
 }
