@@ -14,6 +14,7 @@ import {
 import { formatCredits, formatDuration, titleCaseStatus } from '../../app/format';
 import { AgentDetailPanel } from './AgentDetailPanel';
 import { AgentFleetPanel } from './AgentFleetPanel';
+import { FleetOverviewPanel } from './FleetOverviewPanel';
 import { FleetAnalyticsPanel } from './FleetAnalyticsPanel';
 import { SystemCatalogPanel } from './SystemCatalogPanel';
 import { SystemHistoryPanel } from './SystemHistoryPanel';
@@ -49,6 +50,10 @@ export function SystemOverviewRoute({
   onSelectAgent,
 }: SystemOverviewRouteProps) {
   const [analyticsWindow, setAnalyticsWindow] = useState<AnalyticsWindow>('7d');
+  const fleetSystems = useMemo(
+    () => sortedSystems.map((systemState) => filterSystemStateByWindow(systemState, analyticsWindow) ?? systemState),
+    [analyticsWindow, sortedSystems],
+  );
   const windowedSystemState = useMemo(
     () => filterSystemStateByWindow(selectedSystem, analyticsWindow),
     [selectedSystem, analyticsWindow],
@@ -63,11 +68,14 @@ export function SystemOverviewRoute({
     return (
       <>
         {sortedSystems.length ? (
-          <SystemCatalogPanel
-            systems={sortedSystems}
-            selectedSystemId={selectedSystem?.system.systemId ?? null}
-            onSelectSystem={onSelectSystem}
-          />
+          <>
+            <FleetOverviewPanel systems={fleetSystems} analyticsWindow={analyticsWindow} onSelectSystem={onSelectSystem} />
+            <SystemCatalogPanel
+              systems={fleetSystems}
+              selectedSystemId={selectedSystem?.system.systemId ?? null}
+              onSelectSystem={onSelectSystem}
+            />
+          </>
         ) : null}
 
         {selectedSystem ? (
@@ -209,11 +217,14 @@ export function SystemOverviewRoute({
   return (
     <>
       {sortedSystems.length ? (
-        <SystemCatalogPanel
-          systems={sortedSystems}
-          selectedSystemId={selectedSystem?.system.systemId ?? null}
-          onSelectSystem={onSelectSystem}
-        />
+        <>
+          <FleetOverviewPanel systems={fleetSystems} analyticsWindow={analyticsWindow} onSelectSystem={onSelectSystem} />
+          <SystemCatalogPanel
+            systems={fleetSystems}
+            selectedSystemId={selectedSystem?.system.systemId ?? null}
+            onSelectSystem={onSelectSystem}
+          />
+        </>
       ) : null}
 
       {selectedSystem ? (

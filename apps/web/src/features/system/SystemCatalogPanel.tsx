@@ -1,5 +1,13 @@
+import { useMemo, useState } from 'react';
+
 import type { ControlPlaneSystemState } from '../../app/control-plane';
-import { getAgentLabel, summarizeSystem } from '../../app/control-plane';
+import {
+  filterSystemSummaries,
+  getAgentLabel,
+  SYSTEM_CATALOG_FOCUS_OPTIONS,
+  summarizeSystem,
+  type SystemCatalogFocus,
+} from '../../app/control-plane';
 import { formatCredits, formatDuration, titleCaseStatus } from '../../app/format';
 
 interface SystemCatalogPanelProps {
@@ -9,6 +17,49 @@ interface SystemCatalogPanelProps {
 }
 
 export function SystemCatalogPanel({ systems, selectedSystemId, onSelectSystem }: SystemCatalogPanelProps) {
+  const [query, setQuery] = useState('');
+  const [focus, setFocus] = useState<SystemCatalogFocus>('all');
+  const summaries = useMemo(
+    () =>
+      systems
+        .map((systemState) => ({
+          systemState,
+          summary: summarizeSystem(systemState),
+        }))
+        .filter((item): item is { systemState: ControlPlaneSystemState; summary: NonNullable<ReturnType<typeof summarizeSystem>> } => item.summary != null),
+    [systems],
+  );
+  const filteredSystems = useMemo(() => {
+    const focused = filterSystemSummaries(
+      summaries.map((item) => item.summary),
+      focus,
+    );
+    const focusedIds = new Set(focused.map((summary) => summary.system.systemId));
+    const normalizedQuery = query.trim().toLowerCase();
+
+    return summaries.filter(({ systemState, summary }) => {
+      if (!focusedIds.has(summary.system.systemId)) {
+        return false;
+      }
+
+      if (!normalizedQuery) {
+        return true;
+      }
+
+      const haystacks = [
+        summary.system.name,
+        summary.system.description,
+        ...summary.system.runtimeIds,
+        ...systemState.agents.map((agent) => agent.label),
+        ...systemState.agents.map((agent) => agent.role),
+      ]
+        .filter((value): value is string => typeof value === 'string' && value.trim().length > 0)
+        .map((value) => value.toLowerCase());
+
+      return haystacks.some((value) => value.includes(normalizedQuery));
+    });
+  }, [focus, query, summaries]);
+
   return (
     <section className="surface system-catalog">
       <div className="section-header">
@@ -17,15 +68,32 @@ export function SystemCatalogPanel({ systems, selectedSystemId, onSelectSystem }
           <h2>Registered systems</h2>
           <p className="muted">Pick the system you want to operate, then use Live, Replay, and Optimize against that system instead of a loose demo workflow.</p>
         </div>
-        <span className="meta-chip">{systems.length} system{systems.length === 1 ? '' : 's'}</span>
+        <span className="meta-chip">{filteredSystems.length} visible</span>
+      </div>
+      <label className="text-field">
+        <span>Filter systems</span>
+        <input
+          aria-label="Filter systems"
+          type="text"
+          value={query}
+          onChange={(event) => setQuery(event.target.value)}
+          placeholder="Search by system, runtime, or agent"
+        />
+      </label>
+      <div className="history-toolbar">
+        {SYSTEM_CATALOG_FOCUS_OPTIONS.map((option) => (
+          <button
+            key={option.id}
+            type="button"
+            className={`history-filter ${focus === option.id ? 'history-filter--active' : ''}`}
+            onClick={() => setFocus(option.id)}
+          >
+            {option.label}
+          </button>
+        ))}
       </div>
       <div className="system-catalog__grid">
-        {systems.map((systemState) => {
-          const summary = summarizeSystem(systemState);
-          if (!summary) {
-            return null;
-          }
-
+        {filteredSystems.map(({ systemState, summary }) => {
           const pressureAgentLabel = getAgentLabel(systemState, summary.pressureAgentId ?? undefined);
 
           return (
@@ -71,6 +139,12 @@ export function SystemCatalogPanel({ systems, selectedSystemId, onSelectSystem }
             </button>
           );
         })}
+        {!filteredSystems.length ? (
+          <div className="stack-list__item stack-list__item--body">
+            <strong>No systems match the current filter</strong>
+            <p>Broaden the focus or search query to bring more of the fleet back into view.</p>
+          </div>
+        ) : null}
       </div>
     </section>
   );

@@ -1,9 +1,12 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  filterSystemSummaries,
   filterAgentSummaries,
   filterSystemStateByWindow,
+  summarizeFleet,
   summarizeAgents,
+  summarizeSystem,
   type ControlPlaneSystemState,
 } from './control-plane';
 
@@ -178,5 +181,22 @@ describe('control-plane analytics helpers', () => {
     expect(attention.map((summary) => summary.agent.agentId)).toEqual(['agent_reviewer']);
     expect(failures.map((summary) => summary.agent.agentId)).toEqual(['agent_reviewer']);
     expect(directives.map((summary) => summary.agent.agentId)).toEqual(['agent_reviewer']);
+  });
+
+  it('builds fleet summaries and attention filters for system comparison', () => {
+    const olderSystem = filterSystemStateByWindow(fixture, '24h');
+    const allSystems = [fixture, olderSystem ?? fixture];
+    const fleet = summarizeFleet(allSystems);
+    const healthyOnly = filterSystemSummaries(
+      allSystems
+        .map((systemState) => summarizeSystem(systemState))
+        .filter((summary): summary is NonNullable<ReturnType<typeof summarizeSystem>> => summary != null),
+      'healthy',
+    );
+
+    expect(fleet.systemCount).toBe(2);
+    expect(fleet.releaseWatchlist.length).toBeGreaterThan(0);
+    expect(fleet.hottestSystems[0]?.system.systemId).toBe('system_fixture');
+    expect(healthyOnly).toHaveLength(0);
   });
 });

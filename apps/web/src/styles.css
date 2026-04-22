@@ -1577,6 +1577,19 @@ li {
   position: relative;
 }
 
+.stack-list__button {
+  width: 100%;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: transform 0.2s ease, border-color 0.2s ease, background 0.2s ease;
+}
+
+.stack-list__button:hover {
+  transform: translateY(-1px);
+  border-color: rgba(125, 226, 209, 0.24);
+}
+
 .timeline-list__item {
   grid-template-columns: auto minmax(0, 1fr) auto;
 }

@@ -87,6 +87,7 @@ export interface SystemSummary {
 
 export type AnalyticsWindow = '24h' | '7d' | '30d' | 'all';
 export type AgentRosterFocus = 'all' | 'attention' | 'failures' | 'directives';
+export type SystemCatalogFocus = 'all' | 'attention' | 'active' | 'healthy';
 
 export interface SystemHistoryEvent {
   eventId: string;
@@ -118,6 +119,19 @@ export interface FleetAnalyticsSummary {
   recentFailures: SystemHistoryEvent[];
 }
 
+export interface FleetSummary {
+  systemCount: number;
+  activeSystemCount: number;
+  trackedAgentCount: number;
+  executionCount: number;
+  activeDirectiveCount: number;
+  avgSuccessRate: number;
+  avgCredits: number;
+  avgDurationMs: number;
+  hottestSystems: SystemSummary[];
+  releaseWatchlist: SystemSummary[];
+}
+
 export interface LoadControlPlaneStateOptions {
   apiBaseUrl?: string;
   fetch?: typeof globalThis.fetch;
@@ -146,6 +160,13 @@ export const ANALYTICS_WINDOW_OPTIONS: Array<{ id: AnalyticsWindow; label: strin
   { id: '7d', label: '7d' },
   { id: '30d', label: '30d' },
   { id: 'all', label: 'All time' },
+];
+
+export const SYSTEM_CATALOG_FOCUS_OPTIONS: Array<{ id: SystemCatalogFocus; label: string }> = [
+  { id: 'all', label: 'All systems' },
+  { id: 'attention', label: 'Needs attention' },
+  { id: 'active', label: 'Active now' },
+  { id: 'healthy', label: 'Healthy' },
 ];
 
 const ANALYTICS_WINDOW_MS: Record<Exclude<AnalyticsWindow, 'all'>, number> = {
@@ -1009,6 +1030,78 @@ export function summarizeSystem(systemState: ControlPlaneSystemState | null | un
     lastActiveAt: sortedExecutions[0]?.finishedAt ?? sortedExecutions[0]?.startedAt ?? null,
     pressureAgentId: agentSummaries[0]?.agent.agentId ?? null,
   };
+}
+
+export function summarizeFleet(systemStates: ControlPlaneSystemState[]): FleetSummary {
+  const summaries = systemStates
+    .map((systemState) => summarizeSystem(systemState))
+    .filter((summary): summary is SystemSummary => summary != null);
+
+  const hottestSystems = [...summaries]
+    .sort(
+      (left, right) =>
+        right.activeInterventionCount - left.activeInterventionCount ||
+        right.executionCount - left.executionCount ||
+        compareByNewest(left.lastActiveAt ?? undefined, right.lastActiveAt ?? undefined),
+    )
+    .slice(0, 3);
+
+  const releaseWatchlist = summaries
+    .filter((summary) => {
+      const releaseDecision = summary.latestRelease?.decision;
+      const evaluationVerdict = summary.latestEvaluation?.verdict;
+      return ['hold', 'rollback'].includes(releaseDecision ?? '') || ['hold', 'failed'].includes(evaluationVerdict ?? '');
+    })
+    .sort((left, right) =>
+      compareByNewest(
+        left.latestRelease?.appliedAt ?? left.latestRelease?.requestedAt ?? left.latestEvaluation?.createdAt,
+        right.latestRelease?.appliedAt ?? right.latestRelease?.requestedAt ?? right.latestEvaluation?.createdAt,
+      ),
+    )
+    .slice(0, 4);
+
+  return {
+    systemCount: summaries.length,
+    activeSystemCount: summaries.filter((summary) => summary.executionCount > 0).length,
+    trackedAgentCount: summaries.reduce((total, summary) => total + summary.agentCount, 0),
+    executionCount: summaries.reduce((total, summary) => total + summary.executionCount, 0),
+    activeDirectiveCount: summaries.reduce((total, summary) => total + summary.activeInterventionCount, 0),
+    avgSuccessRate: computeAverage(summaries.map((summary) => summary.successRate)),
+    avgCredits: computeAverage(summaries.map((summary) => summary.avgCredits)),
+    avgDurationMs: computeAverage(summaries.map((summary) => summary.avgDurationMs)),
+    hottestSystems,
+    releaseWatchlist,
+  };
+}
+
+export function filterSystemSummaries(summaries: SystemSummary[], focus: SystemCatalogFocus) {
+  switch (focus) {
+    case 'attention':
+      return summaries.filter(
+        (summary) =>
+          summary.activeInterventionCount > 0 ||
+          summary.latestExecution?.status === 'failed' ||
+          ['hold', 'rollback'].includes(summary.latestRelease?.decision ?? '') ||
+          ['hold', 'failed'].includes(summary.latestEvaluation?.verdict ?? ''),
+      );
+    case 'active':
+      return summaries.filter(
+        (summary) =>
+          summary.latestExecution?.status === 'running' ||
+          summary.latestExecution?.status === 'active' ||
+          summary.executionCount > 0,
+      );
+    case 'healthy':
+      return summaries.filter(
+        (summary) =>
+          summary.successRate >= 0.8 &&
+          summary.activeInterventionCount === 0 &&
+          !['hold', 'rollback'].includes(summary.latestRelease?.decision ?? ''),
+      );
+    case 'all':
+    default:
+      return summaries;
+  }
 }
 
 export function sortSystemsByActivity(systems: ControlPlaneSystemState[]): ControlPlaneSystemState[] {

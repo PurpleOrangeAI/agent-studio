@@ -559,6 +559,8 @@ describe('App shell', () => {
     render(<App />);
 
     expect(await screen.findByLabelText(/^runtime$/i)).toHaveValue('runtime_imported');
+    expect(screen.getByRole('heading', { level: 2, name: /cross-system pressure and release watch/i })).toBeInTheDocument();
+    expect(screen.getByLabelText(/filter systems/i)).toBeInTheDocument();
     expect(screen.getByRole('heading', { level: 2, name: /time-windowed system view/i })).toBeInTheDocument();
     expect(screen.getByText(/fleet analytics/i)).toBeInTheDocument();
     expect(

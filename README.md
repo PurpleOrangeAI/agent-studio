@@ -2,7 +2,21 @@
 
 The open control room for multi-agent systems.
 
-This repo currently gives you a seeded local control-room demo plus a LangGraph ingest path. Agent Studio is runtime-agnostic, replay-first, evidence-backed, and built around a safe release loop. It is not another agent builder and it is not a generic RAG chat tool.
+Agent Studio is for teams running real agents and multi-agent systems who need to answer four practical questions:
+
+- What is running right now?
+- Which agents or systems are under pressure?
+- What exactly failed?
+- What should change before the next release?
+
+This repo currently gives you:
+
+- a public control-room demo
+- a runtime-agnostic control-plane contract
+- a bring-your-own ingest path
+- a shipped LangGraph adapter
+
+It is not another agent builder and it is not a generic RAG chat tool.
 
 ## Live demo
 
@@ -16,10 +30,50 @@ This repo currently gives you a seeded local control-room demo plus a LangGraph 
 - `apps/api` for the local API and ingest surface
 - `packages/contracts` for the shared runtime contract
 - `packages/sdk-js` for JS instrumentation
-- `packages/sdk-python` for the planned Python path
+- `packages/sdk-python` for the Python instrumentation path
 - `packages/demo` for the seeded demo dataset
 - `packages/adapters/langgraph` for the first shipped adapter
 - `packages/adapters/openhands` is planned, not shipped yet
+
+## Why this exists
+
+Most agent tooling is strong at one piece of the loop:
+
+- framework
+- tracing
+- evals
+- memory
+- prompt iteration
+
+Agent Studio is aimed at the operating loop across all of that:
+
+- ingest your systems
+- inspect fleet pressure
+- replay the failing path
+- compare the candidate change
+- release with evidence
+
+## Current product surface
+
+The current public demo already shows the core shape:
+
+- system-first overview instead of workflow-first storytelling
+- cross-system fleet overview and watchlist
+- searchable agent roster
+- execution and release history
+- time-windowed analytics
+- persistent hosted control-plane state on the public demo
+
+## Bring your own agents
+
+Agent Studio is built to ingest external systems instead of forcing you into one framework.
+
+- shipped first adapter:
+  - LangGraph
+- current generic path:
+  - control-plane ingest endpoints
+- planned next adapter:
+  - OpenHands
 
 ## Read This First
 
