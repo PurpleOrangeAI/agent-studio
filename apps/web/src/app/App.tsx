@@ -507,7 +507,7 @@ export function App() {
             title={ROOM_COPY.replay.title}
             body={ROOM_COPY.replay.body}
             items={ROOM_COPY.replay.items}
-            advanced={<ReplayAdvancedPanel replay={selectedWorkflowState.replay.replay} />}
+            advanced={<ReplayAdvancedPanel replay={selectedWorkflowState.replay.replay} controlPlane={selectedControlPlaneSystem} />}
             showAdvanced={advancedOpen.replay}
             onToggleAdvanced={() => toggleAdvanced('replay')}
             advancedEyebrow={ROOM_COPY.replay.advancedEyebrow}
@@ -516,7 +516,11 @@ export function App() {
             openLabel={ROOM_COPY.replay.openLabel}
             closeLabel={ROOM_COPY.replay.closeLabel}
           >
-            <ReplayPanel replay={selectedWorkflowState.replay.replay} baselineRun={selectedWorkflowState.replay.baselineRun} />
+            <ReplayPanel
+              replay={selectedWorkflowState.replay.replay}
+              baselineRun={selectedWorkflowState.replay.baselineRun}
+              controlPlane={selectedControlPlaneSystem}
+            />
           </RoomShell>
         ) : null}
 

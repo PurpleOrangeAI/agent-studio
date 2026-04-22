@@ -34,6 +34,38 @@ export interface LoadControlPlaneStateOptions {
   fetch?: typeof globalThis.fetch;
 }
 
+export function getExecutionForRun(systemState: ControlPlaneSystemState | null | undefined, runId: string) {
+  if (!systemState) {
+    return null;
+  }
+
+  return systemState.executions.find((execution) => execution.runId === runId) ?? null;
+}
+
+export function getExecutionSpans(systemState: ControlPlaneSystemState | null | undefined, executionId?: string) {
+  if (!systemState || !executionId) {
+    return [];
+  }
+
+  return systemState.executionSpans[executionId] ?? [];
+}
+
+export function getExecutionMetrics(systemState: ControlPlaneSystemState | null | undefined, executionId?: string) {
+  if (!systemState || !executionId) {
+    return [];
+  }
+
+  return systemState.executionMetrics[executionId] ?? [];
+}
+
+export function getAgentLabel(systemState: ControlPlaneSystemState | null | undefined, agentId?: string) {
+  if (!systemState || !agentId) {
+    return null;
+  }
+
+  return systemState.agents.find((agent) => agent.agentId === agentId)?.label ?? null;
+}
+
 function buildApiUrl(apiBaseUrl: string, pathname: string) {
   if (!apiBaseUrl) {
     return pathname;
