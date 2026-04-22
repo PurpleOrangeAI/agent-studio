@@ -494,10 +494,11 @@ describe('App shell', () => {
     expect(screen.getByRole('heading', { level: 1, name: /agent studio/i })).toBeInTheDocument();
     expect(screen.getByRole('heading', { level: 2, name: /registered systems/i })).toBeInTheDocument();
     expect(screen.getByRole('heading', { level: 2, name: /^live, replay, optimize$/i })).toBeInTheDocument();
-    expect(screen.getByRole('heading', { name: /connect your own multi-agent system/i })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: /connect, operate, and improve a real agent system/i })).toBeInTheDocument();
     expect(screen.getByRole('tab', { name: /^live$/i })).toBeInTheDocument();
     expect(screen.getByRole('tab', { name: /^replay$/i })).toBeInTheDocument();
     expect(screen.getByRole('tab', { name: /^optimize$/i })).toBeInTheDocument();
+    expect(screen.getAllByText(/live needs an agent roster before it becomes a real command surface/i).length).toBeGreaterThan(0);
     expect(screen.getAllByRole('heading', { level: 3, name: /weekly operations brief/i }).length).toBeGreaterThan(0);
     expect(screen.getAllByText(/guardrailed candidate/i).length).toBeGreaterThan(0);
     expect(screen.getByText(/promoted the tighter fan-out plan/i)).toBeInTheDocument();

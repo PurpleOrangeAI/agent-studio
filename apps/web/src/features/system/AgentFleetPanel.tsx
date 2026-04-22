@@ -50,7 +50,7 @@ export function AgentFleetPanel({ systemState, selectedAgentId, onSelectAgent, a
         <div>
           <p className="eyebrow">Agent fleet</p>
           <h2>Searchable agent roster</h2>
-          <p className="muted">This is the scalable primary surface. Use the roster to find the hot agent first, then use Live for topology context.</p>
+          <p className="muted">This is the scalable primary surface for agent management. Find the hot agent here, then use Live for topology context and Replay for the failing path.</p>
         </div>
         <span className="meta-chip">
           {filteredAgents.length} visible · {getAnalyticsWindowLabel(analyticsWindow)}

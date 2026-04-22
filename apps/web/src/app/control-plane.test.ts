@@ -6,6 +6,7 @@ import {
   filterSystemStateByWindow,
   summarizeFleet,
   summarizeAgents,
+  summarizeSystemReadiness,
   summarizeSystem,
   type ControlPlaneSystemState,
 } from './control-plane';
@@ -198,5 +199,21 @@ describe('control-plane analytics helpers', () => {
     expect(fleet.releaseWatchlist.length).toBeGreaterThan(0);
     expect(fleet.hottestSystems[0]?.system.systemId).toBe('system_fixture');
     expect(healthyOnly).toHaveLength(0);
+  });
+
+  it('summarizes the next operator step and room readiness', () => {
+    const readiness = summarizeSystemReadiness(fixture);
+    const missingSystem = summarizeSystemReadiness(null);
+
+    expect(readiness.stageId).toBe('model');
+    expect(readiness.completedSteps).toBe(4);
+    expect(readiness.title).toMatch(/add the system topology/i);
+    expect(readiness.roomReadiness.find((room) => room.roomId === 'replay')?.state).toBe('ready');
+    expect(readiness.roomReadiness.find((room) => room.roomId === 'live')?.label).toBe('Add topology');
+    expect(readiness.roomReadiness.find((room) => room.roomId === 'optimize')?.label).toBe('Ready');
+
+    expect(missingSystem.stageId).toBe('register');
+    expect(missingSystem.roomReadiness.find((room) => room.roomId === 'connect')?.state).toBe('next');
+    expect(missingSystem.title).toMatch(/register a runtime and system/i);
   });
 });

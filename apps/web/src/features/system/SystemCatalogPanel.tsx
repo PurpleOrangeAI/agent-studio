@@ -66,7 +66,7 @@ export function SystemCatalogPanel({ systems, selectedSystemId, onSelectSystem }
         <div>
           <p className="eyebrow">System catalog</p>
           <h2>Registered systems</h2>
-          <p className="muted">Pick the system you want to operate, then use Live, Replay, and Optimize against that system instead of a loose demo workflow.</p>
+          <p className="muted">Pick the system you want to operate and manage, then use Live, Replay, and Optimize against that system instead of a loose demo workflow.</p>
         </div>
         <span className="meta-chip">{filteredSystems.length} visible</span>
       </div>

@@ -132,6 +132,34 @@ export interface FleetSummary {
   releaseWatchlist: SystemSummary[];
 }
 
+export type OperatorRoomId = 'overview' | 'connect' | 'live' | 'replay' | 'optimize';
+export type RoomReadinessState = 'ready' | 'partial' | 'needs-data' | 'next';
+export type SystemReadinessStage = 'register' | 'model' | 'trace' | 'release' | 'operational';
+
+export interface RoomReadinessSummary {
+  roomId: OperatorRoomId;
+  state: RoomReadinessState;
+  label: string;
+  detail: string;
+}
+
+export interface SystemReadinessSummary {
+  stageId: SystemReadinessStage;
+  stageLabel: string;
+  title: string;
+  body: string;
+  completedSteps: number;
+  totalSteps: number;
+  agentCount: number;
+  executionCount: number;
+  spanCount: number;
+  interventionCount: number;
+  evaluationCount: number;
+  releaseCount: number;
+  hasTopology: boolean;
+  roomReadiness: RoomReadinessSummary[];
+}
+
 export interface LoadControlPlaneStateOptions {
   apiBaseUrl?: string;
   fetch?: typeof globalThis.fetch;
@@ -1071,6 +1099,135 @@ export function summarizeFleet(systemStates: ControlPlaneSystemState[]): FleetSu
     avgDurationMs: computeAverage(summaries.map((summary) => summary.avgDurationMs)),
     hottestSystems,
     releaseWatchlist,
+  };
+}
+
+function createRoomReadiness(roomId: OperatorRoomId, state: RoomReadinessState, label: string, detail: string): RoomReadinessSummary {
+  return {
+    roomId,
+    state,
+    label,
+    detail,
+  };
+}
+
+export function summarizeSystemReadiness(systemState: ControlPlaneSystemState | null | undefined): SystemReadinessSummary {
+  const agentCount = systemState?.agents.length ?? 0;
+  const executionCount = systemState?.executions.length ?? 0;
+  const spanCount = Object.values(systemState?.executionSpans ?? {}).reduce((total, spans) => total + spans.length, 0);
+  const interventionCount = systemState?.interventions.length ?? 0;
+  const evaluationCount = systemState?.evaluations.length ?? 0;
+  const releaseCount = systemState?.releases.length ?? 0;
+  const hasTopology = Boolean(systemState?.topology?.nodes?.length ?? systemState?.topology);
+  const hasReleaseEvidence = evaluationCount > 0 || releaseCount > 0;
+
+  const completedSteps = [
+    Boolean(systemState),
+    agentCount > 0,
+    hasTopology,
+    executionCount > 0 && spanCount > 0,
+    hasReleaseEvidence,
+  ].filter(Boolean).length;
+
+  let stageId: SystemReadinessStage = 'operational';
+  let stageLabel = 'Operational';
+  let title = 'System is ready to operate';
+  let body = 'Use Overview to choose the right system, Live to inspect current pressure, Replay to explain failures, and Optimize to compare interventions and releases.';
+
+  if (!systemState) {
+    stageId = 'register';
+    stageLabel = 'Needs registration';
+    title = 'Register a runtime and system first';
+    body = 'Create a durable home for the agent network before you import agents, traces, or release evidence.';
+  } else if (agentCount === 0 || !hasTopology) {
+    stageId = 'model';
+    stageLabel = agentCount === 0 ? 'Needs agents' : 'Needs topology';
+    title = agentCount === 0 ? 'Add the agent roster' : 'Add the system topology';
+    body =
+      agentCount === 0
+        ? 'Ingest agents so Studio can identify who is in the system and which runtime each role belongs to.'
+        : 'Ingest a topology snapshot so Live can show handoffs, dependencies, and the real command map.';
+  } else if (executionCount === 0 || spanCount === 0) {
+    stageId = 'trace';
+    stageLabel = executionCount === 0 ? 'Needs executions' : 'Needs spans';
+    title = executionCount === 0 ? 'Ingest the first execution' : 'Ingest span breakdowns';
+    body =
+      executionCount === 0
+        ? 'Send at least one execution record so Studio can move from static inventory into a real operating surface.'
+        : 'Send spans and metrics so Replay can expose the real break tree and Agent Studio can measure per-agent pressure.';
+  } else if (!hasReleaseEvidence) {
+    stageId = 'release';
+    stageLabel = 'Needs release evidence';
+    title = 'Add evaluations or release decisions';
+    body = 'Optimize becomes useful only when the system has intervention, evaluation, and release evidence to compare.';
+  }
+
+  const roomReadiness: RoomReadinessSummary[] = [
+    createRoomReadiness(
+      'overview',
+      systemState ? 'ready' : 'next',
+      systemState ? 'Ready' : 'Start here',
+      systemState
+        ? 'Pick the system, inspect fleet pressure, and choose the next drill-in.'
+        : 'Register or import the first system, then return here to operate it.',
+    ),
+    createRoomReadiness(
+      'connect',
+      stageId === 'operational' ? 'ready' : 'next',
+      stageId === 'operational' ? 'Available' : 'Next step',
+      stageId === 'operational'
+        ? 'Use Connect when you add more systems or import more evidence.'
+        : `${title}.`,
+    ),
+    createRoomReadiness(
+      'live',
+      agentCount === 0 ? 'needs-data' : hasTopology && executionCount > 0 ? 'ready' : 'partial',
+      agentCount === 0 ? 'Needs agents' : hasTopology && executionCount > 0 ? 'Ready' : hasTopology ? 'Needs executions' : 'Add topology',
+      agentCount === 0
+        ? 'Live needs an agent roster before it becomes a real command surface.'
+        : hasTopology && executionCount > 0
+          ? 'Live can show the active system, topology, and current pressure.'
+          : hasTopology
+            ? 'Live can show the roster, but it needs executions to reflect the active system.'
+            : 'Live can show the roster, but topology makes the command map practical.',
+    ),
+    createRoomReadiness(
+      'replay',
+      executionCount > 0 && spanCount > 0 ? 'ready' : 'needs-data',
+      executionCount === 0 ? 'Needs executions' : spanCount === 0 ? 'Needs spans' : 'Ready',
+      executionCount === 0
+        ? 'Replay needs executions before it can compare runs.'
+        : spanCount === 0
+          ? 'Replay needs span breakdowns to explain what actually failed.'
+          : 'Replay can trace the failing path and compare it to the healthy control.',
+    ),
+    createRoomReadiness(
+      'optimize',
+      hasReleaseEvidence ? 'ready' : interventionCount > 0 ? 'partial' : 'needs-data',
+      hasReleaseEvidence ? 'Ready' : interventionCount > 0 ? 'Needs evaluations' : 'Needs release evidence',
+      hasReleaseEvidence
+        ? 'Optimize can compare interventions, evaluations, and release calls.'
+        : interventionCount > 0
+          ? 'You have directives, but Optimize still needs evaluations or release decisions.'
+          : 'Optimize needs evaluations or release decisions before it becomes a real workbench.',
+    ),
+  ];
+
+  return {
+    stageId,
+    stageLabel,
+    title,
+    body,
+    completedSteps,
+    totalSteps: 5,
+    agentCount,
+    executionCount,
+    spanCount,
+    interventionCount,
+    evaluationCount,
+    releaseCount,
+    hasTopology,
+    roomReadiness,
   };
 }
 

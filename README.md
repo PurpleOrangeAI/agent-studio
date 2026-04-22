@@ -75,6 +75,21 @@ Agent Studio is built to ingest external systems instead of forcing you into one
 - planned next adapter:
   - OpenHands
 
+## Fastest connection path
+
+The shortest safe path inside the product is:
+
+1. Register the runtime and system
+2. Import the agent roster and topology
+3. Import executions, spans, and metrics
+4. Import evaluations or release decisions
+
+That progression matters:
+
+- `Live` needs agents and topology
+- `Replay` needs executions and spans
+- `Optimize` needs evaluation or release evidence
+
 ## Read This First
 
 - [Install](./docs/install.md)

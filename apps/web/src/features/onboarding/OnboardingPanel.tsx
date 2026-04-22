@@ -1,84 +1,156 @@
 import type { ControlPlaneState, ControlPlaneSystemState } from '../../app/control-plane';
+import { summarizeSystemReadiness } from '../../app/control-plane';
 
 interface OnboardingPanelProps {
   onDismiss: () => void;
+  onOpenConnect: () => void;
+  onOpenOverview: () => void;
   controlPlaneState?: ControlPlaneState | null;
   systemState?: ControlPlaneSystemState | null;
   runtimeLabel?: string | null;
 }
 
-const OPERATOR_STEPS = [
+const MANAGEMENT_STEPS = [
   {
-    title: '1. Register the runtime',
-    body: 'Post a runtime and system first so Studio has a durable home for your agent network.',
+    title: 'Overview',
+    body: 'Choose the system, watch fleet pressure, and pick the hot agent before you dive deeper.',
   },
   {
-    title: '2. Ingest real traces',
-    body: 'Send agents, topology, executions, spans, and metrics so Live and Replay stop guessing.',
+    title: 'Live',
+    body: 'Use Live for the active topology, current pressure, and the directives already affecting the system.',
   },
   {
-    title: '3. Tune and release',
-    body: 'Use interventions, evaluations, and release decisions to make Studio an operating surface instead of a viewer.',
+    title: 'Replay',
+    body: 'Use Replay once executions and spans exist. That is where the failing path becomes clear enough to act on.',
+  },
+  {
+    title: 'Optimize',
+    body: 'Use Optimize for interventions, evaluations, and release decisions. It is not the place to guess.',
   },
 ];
 
-export function OnboardingPanel({ onDismiss, controlPlaneState, systemState, runtimeLabel }: OnboardingPanelProps) {
-  const spanCount = Object.values(systemState?.executionSpans ?? {}).reduce((total, spans) => total + spans.length, 0);
-  const ingestChecks = [
-    { label: 'Runtimes', value: controlPlaneState?.runtimes.length ?? 0 },
-    { label: 'Systems', value: controlPlaneState?.systems.length ?? 0 },
-    { label: 'Agents', value: systemState?.agents.length ?? 0 },
-    { label: 'Topology', value: systemState?.topology ? 1 : 0 },
-    { label: 'Executions', value: systemState?.executions.length ?? 0 },
-    { label: 'Spans', value: spanCount },
-    { label: 'Interventions', value: systemState?.interventions.length ?? 0 },
-    { label: 'Releases', value: systemState?.releases.length ?? 0 },
+export function OnboardingPanel({
+  onDismiss,
+  onOpenConnect,
+  onOpenOverview,
+  controlPlaneState,
+  systemState,
+  runtimeLabel,
+}: OnboardingPanelProps) {
+  const readiness = summarizeSystemReadiness(systemState);
+  const systemName = systemState?.system.name ?? 'your imported system';
+  const connectionSteps = [
+    {
+      title: '1. Create the system home',
+      body: 'Register a runtime and system so Studio has a durable place to attach agents and traces.',
+      ready: readiness.completedSteps >= 1,
+    },
+    {
+      title: '2. Add agents and topology',
+      body: 'Ingest the roster and topology so Studio knows who is in the system and how work flows between them.',
+      ready: readiness.agentCount > 0 && readiness.hasTopology,
+    },
+    {
+      title: '3. Send executions and spans',
+      body: 'Replay only becomes trustworthy when executions, spans, and metrics come from the real runtime.',
+      ready: readiness.executionCount > 0 && readiness.spanCount > 0,
+    },
+    {
+      title: '4. Add evaluation and release evidence',
+      body: 'Optimize needs evaluations or release decisions before it can become a real workbench.',
+      ready: readiness.evaluationCount > 0 || readiness.releaseCount > 0,
+    },
   ];
 
   return (
     <section className="surface onboarding-panel">
       <div className="onboarding-panel__header">
         <div>
-          <p className="eyebrow">First run</p>
-          <h2>Connect your own multi-agent system</h2>
+          <p className="eyebrow">Operator guide</p>
+          <h2>Connect, operate, and improve a real agent system</h2>
           <p className="muted">
-            Agent Studio is not where you author the runtime. It is where you register the system, verify ingest health,
-            operate traces, and decide what should change next.
+            Agent Studio does not replace your runtime. It becomes useful when you register the system, ingest the real
+            roster and traces, and use the rooms in the right order.
           </p>
         </div>
         <button className="ghost-button" type="button" onClick={onDismiss}>
           Hide panel
         </button>
       </div>
+
+      <div className="inline-callout inline-callout--success">
+        <span className="eyebrow">Current next step</span>
+        <p>
+          <strong>{readiness.title}</strong> {readiness.body}
+        </p>
+        <div className="guide-actions">
+          <button className="control-strip__primary" type="button" onClick={onOpenConnect}>
+            Open Connect
+          </button>
+          <button className="ghost-button" type="button" onClick={onOpenOverview}>
+            Open Overview
+          </button>
+          <span className="meta-chip">
+            {readiness.completedSteps}/{readiness.totalSteps} stages ready
+          </span>
+        </div>
+      </div>
+
+      <div className="guide-grid">
+        <section className="mini-surface">
+          <p className="eyebrow">Fastest path</p>
+          <h3>What to connect first</h3>
+          <div className="guide-stack">
+            {connectionSteps.map((step) => (
+              <article key={step.title} className={`guide-step ${step.ready ? 'guide-step--ready' : 'guide-step--pending'}`}>
+                <strong>{step.title}</strong>
+                <p>{step.body}</p>
+              </article>
+            ))}
+          </div>
+        </section>
+
+        <section className="mini-surface">
+          <p className="eyebrow">Room requirements</p>
+          <h3>What each room needs</h3>
+          <div className="guide-stack">
+            {readiness.roomReadiness.map((room) => (
+              <article key={room.roomId} className={`guide-step guide-step--${room.state}`}>
+                <div className="guide-step__header">
+                  <strong>{room.roomId.charAt(0).toUpperCase() + room.roomId.slice(1)}</strong>
+                  <span className="meta-chip">{room.label}</span>
+                </div>
+                <p>{room.detail}</p>
+              </article>
+            ))}
+          </div>
+        </section>
+      </div>
+
       <div className="loop-grid">
-        {OPERATOR_STEPS.map((step) => (
+        {MANAGEMENT_STEPS.map((step) => (
           <article key={step.title} className="loop-grid__card">
             <h3>{step.title}</h3>
             <p>{step.body}</p>
           </article>
         ))}
       </div>
-      <div className="ingest-grid">
-        {ingestChecks.map((check) => (
-          <article key={check.label} className={`ingest-card ${check.value > 0 ? 'ingest-card--ready' : 'ingest-card--thin'}`}>
-            <span>{check.label}</span>
-            <strong>{check.value}</strong>
-          </article>
-        ))}
-      </div>
+
       <div className="boundary-note">
-        <strong>Current connection path:</strong> POST to the `/api/control/ingest/*` routes for runtimes, systems,
-        agents, topology, executions, spans, metrics, interventions, evaluations, and releases. The seeded demo is
-        currently loaded as <strong>{systemState?.system.name ?? 'the demo system'}</strong>
+        <strong>Current system:</strong> {systemName}
         {runtimeLabel ? (
           <>
             {' '}
             on <strong>{runtimeLabel}</strong>
           </>
         ) : null}
+        . <strong>Current stage:</strong> {readiness.stageLabel}. <strong>Storage:</strong>{' '}
+        {controlPlaneState?.storage.mode === 'blob'
+          ? 'persistent hosted control-plane store'
+          : controlPlaneState?.storage.mode === 'file'
+            ? 'persistent file-backed registry'
+            : 'ephemeral in-memory demo store'}
         .
-        {' '}
-        <strong>Storage:</strong> {controlPlaneState?.storage.mode === 'file' ? 'persistent file-backed registry' : 'ephemeral in-memory demo store'}.
       </div>
     </section>
   );

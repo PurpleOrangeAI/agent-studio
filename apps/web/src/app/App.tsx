@@ -19,6 +19,7 @@ import {
   getAgentLabel,
   getWorkflowIdForSystem,
   sortSystemsByActivity,
+  summarizeSystemReadiness,
   summarizeSystem,
 } from './control-plane';
 
@@ -280,6 +281,11 @@ export function App() {
   const selectedRuntime = runtimeOptions.find((option) => option.id === runtimeId) ?? null;
   const selectedControlPlaneSystem = selectedSystemState ?? (workflow ? controlPlaneState?.systemsByWorkflowId[workflow.workflowId] ?? null : null);
   const selectedSystemSummary = summarizeSystem(selectedControlPlaneSystem);
+  const systemReadiness = summarizeSystemReadiness(selectedControlPlaneSystem);
+  const roomReadinessById = Object.fromEntries(systemReadiness.roomReadiness.map((room) => [room.roomId, room])) as Record<
+    (typeof systemReadiness.roomReadiness)[number]['roomId'],
+    (typeof systemReadiness.roomReadiness)[number]
+  >;
   const pressureAgentLabel = getAgentLabel(selectedControlPlaneSystem, selectedSystemSummary?.pressureAgentId ?? undefined);
   const currentStateStatus = selectedSystemSummary?.latestExecution?.status ?? liveRun?.status ?? 'active';
   const currentStateName = selectedControlPlaneSystem?.system.name ?? workflow?.name ?? 'Seeded demo system';
@@ -434,23 +440,43 @@ export function App() {
 
   const controlLoopCue: ControlLoopCue =
     selectedView === 'overview'
-      ? {
-          eyebrow: 'Control loop',
-          title: 'Start from the live system',
-          body: 'Use the overview to find the right system and hot agents, then move into Live when you want to operate the active execution path.',
-          primaryLabel: 'Open Live',
-          onPrimary: () => navigateTo('live'),
-          secondaryLabel: 'Open Connect',
-          onSecondary: () => navigateTo('connect', null),
-        }
-      : selectedView === 'connect'
+      ? systemReadiness.stageId !== 'operational'
         ? {
-            eyebrow: 'Control loop',
-            title: 'Next: return to the system overview',
-            body: 'After you register or import a system, come back to Overview to inspect fleet health and decide where to drill in.',
-            primaryLabel: 'Open Overview',
-            onPrimary: () => navigateTo('overview'),
+            eyebrow: 'Connection path',
+            title: systemReadiness.title,
+            body: `${systemReadiness.body} Connect now shows the shortest path to light up the missing rooms.`,
+            primaryLabel: 'Open Connect',
+            onPrimary: () => navigateTo('connect', null),
+            secondaryLabel: selectedControlPlaneSystem ? 'Stay on Overview' : undefined,
+            onSecondary: selectedControlPlaneSystem ? () => navigateTo('overview') : undefined,
           }
+        : {
+            eyebrow: 'Control loop',
+            title: 'Start from the live system',
+            body: 'Use the overview to find the right system and hot agents, then move into Live when you want to operate the active execution path.',
+            primaryLabel: 'Open Live',
+            onPrimary: () => navigateTo('live'),
+            secondaryLabel: 'Open Connect',
+            onSecondary: () => navigateTo('connect', null),
+          }
+      : selectedView === 'connect'
+        ? systemReadiness.stageId === 'operational'
+          ? {
+              eyebrow: 'Control loop',
+              title: 'Connection path looks complete',
+              body: 'Return to Overview to inspect the system, then use Live, Replay, and Optimize as the traces change.',
+              primaryLabel: 'Open Overview',
+              onPrimary: () => navigateTo('overview'),
+              secondaryLabel: 'Open Live',
+              onSecondary: () => navigateTo('live'),
+            }
+          : {
+              eyebrow: 'Connection path',
+              title: systemReadiness.title,
+              body: `${systemReadiness.body} Register the missing layer, then return to Overview to operate the system instead of the import form.`,
+              primaryLabel: 'Open Overview',
+              onPrimary: () => navigateTo('overview'),
+            }
       : !hasRoomProjection
         ? {
             eyebrow: 'Control loop',
@@ -461,35 +487,35 @@ export function App() {
             secondaryLabel: 'Open Overview',
             onSecondary: () => navigateTo('overview'),
           }
-      : selectedView === 'live'
-        ? {
-            eyebrow: 'Control loop',
-            title: 'Next: open Replay',
-            body: `${replayRun?.experimentLabel ?? 'The selected replay'} is the clearest weak run in the loop. Use Replay to confirm what broke before you tune anything else.`,
-            primaryLabel: 'Open Replay',
-            onPrimary: () => navigateTo('replay'),
-            secondaryLabel: failedReplayStep?.title ? `Focus ${failedReplayStep.title}` : undefined,
-            onSecondary: failedReplayStep?.title ? () => navigateTo('replay') : undefined,
-          }
-        : selectedView === 'replay'
-        ? {
-            eyebrow: 'Control loop',
-            title: 'Next: test the fix in Optimize',
-            body: `Replay already identified the break. Move into Optimize and pressure-test ${candidateRun?.experimentLabel ?? 'the current candidate'} against the healthy control.`,
-            primaryLabel: 'Open Optimize',
-            onPrimary: () => navigateTo('optimize'),
-            secondaryLabel: 'Back to Live',
-            onSecondary: () => navigateTo('live'),
-          }
-        : {
-            eyebrow: 'Control loop',
-            title: 'Next: validate the promoted system in Live',
-            body: `${candidateRun?.experimentLabel ?? 'The current candidate'} looks strong enough to ship. Move back to Live and confirm the loop still feels healthy after the release call.`,
-            primaryLabel: 'Open Live',
-            onPrimary: () => navigateTo('live'),
-            secondaryLabel: 'Re-open Replay',
-            onSecondary: () => navigateTo('replay'),
-          };
+        : selectedView === 'live'
+          ? {
+              eyebrow: 'Control loop',
+              title: 'Next: open Replay',
+              body: `${replayRun?.experimentLabel ?? 'The selected replay'} is the clearest weak run in the loop. Use Replay to confirm what broke before you tune anything else.`,
+              primaryLabel: 'Open Replay',
+              onPrimary: () => navigateTo('replay'),
+              secondaryLabel: failedReplayStep?.title ? `Focus ${failedReplayStep.title}` : undefined,
+              onSecondary: failedReplayStep?.title ? () => navigateTo('replay') : undefined,
+            }
+          : selectedView === 'replay'
+            ? {
+                eyebrow: 'Control loop',
+                title: 'Next: test the fix in Optimize',
+                body: `Replay already identified the break. Move into Optimize and pressure-test ${candidateRun?.experimentLabel ?? 'the current candidate'} against the healthy control.`,
+                primaryLabel: 'Open Optimize',
+                onPrimary: () => navigateTo('optimize'),
+                secondaryLabel: 'Back to Live',
+                onSecondary: () => navigateTo('live'),
+              }
+            : {
+                eyebrow: 'Control loop',
+                title: 'Next: validate the promoted system in Live',
+                body: `${candidateRun?.experimentLabel ?? 'The current candidate'} looks strong enough to ship. Move back to Live and confirm the loop still feels healthy after the release call.`,
+                primaryLabel: 'Open Live',
+                onPrimary: () => navigateTo('live'),
+                secondaryLabel: 'Re-open Replay',
+                onSecondary: () => navigateTo('replay'),
+              };
 
   function dismissOnboarding() {
     setShowOnboarding(false);
@@ -657,6 +683,8 @@ export function App() {
         {showOnboarding ? (
           <OnboardingPanel
             onDismiss={dismissOnboarding}
+            onOpenConnect={() => navigateTo('connect', null)}
+            onOpenOverview={() => navigateTo('overview')}
             controlPlaneState={controlPlaneState}
             systemState={selectedControlPlaneSystem}
             runtimeLabel={selectedRuntime?.label ?? null}
@@ -683,6 +711,10 @@ export function App() {
                 <span className="room-tab__path">{VIEW_LABELS[view].path}</span>
                 <strong>{VIEW_LABELS[view].title}</strong>
                 <small>{VIEW_LABELS[view].summary}</small>
+                <span className={`room-tab__status room-tab__status--${roomReadinessById[view]?.state ?? 'ready'}`}>
+                  {roomReadinessById[view]?.label ?? 'Ready'}
+                </span>
+                <span className="room-tab__hint">{roomReadinessById[view]?.detail ?? 'Operate this room directly.'}</span>
               </button>
             ))}
           </div>
