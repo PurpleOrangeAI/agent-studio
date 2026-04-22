@@ -13,6 +13,31 @@ import { ReplayPanel } from '../features/replay/ReplayPanel';
 
 type RoomId = 'live' | 'replay' | 'optimize';
 
+const ROOM_LABELS: Record<
+  RoomId,
+  {
+    title: string;
+    summary: string;
+    path: string;
+  }
+> = {
+  live: {
+    title: 'Live',
+    summary: 'Operate the current system',
+    path: 'Observe',
+  },
+  replay: {
+    title: 'Replay',
+    summary: 'Explain the last run',
+    path: 'Explain',
+  },
+  optimize: {
+    title: 'Optimize',
+    summary: 'Test and release changes',
+    path: 'Release',
+  },
+};
+
 const ONBOARDING_STORAGE_KEY = 'agent-studio-demo-onboarding-dismissed';
 
 function getInitialOnboardingState() {
@@ -171,6 +196,17 @@ export function App() {
   const selectedWorkflowState =
     demoState.workflowStates[workflowId] ?? demoState.workflowStates[demoState.defaultWorkflowId];
   const workflow = selectedWorkflowState.workflow;
+  const liveRun = selectedWorkflowState.live.run;
+  const replayRun = selectedWorkflowState.replay.run;
+  const failedReplayStep =
+    selectedWorkflowState.replay.replay.stepExecutions.find((step) => step.status === 'failed') ??
+    selectedWorkflowState.replay.replay.stepExecutions[0];
+  const candidateRun = selectedWorkflowState.optimize.candidateRun;
+  const candidateCreditsDelta = (candidateRun.actualCredits ?? 0) - (selectedWorkflowState.optimize.baselineRun.actualCredits ?? 0);
+  const candidateDurationDeltaSeconds = Math.round(
+    ((candidateRun.durationMs ?? 0) - (selectedWorkflowState.optimize.baselineRun.durationMs ?? 0)) / 1000,
+  );
+  const selectedRuntime = demoState.runtimeOptions.find((option) => option.id === runtimeId);
 
   function dismissOnboarding() {
     setShowOnboarding(false);
@@ -198,33 +234,83 @@ export function App() {
             <p className="eyebrow">Public demo</p>
             <h1>Agent Studio</h1>
             <p className="hero__lede">
-              A seeded control room for agent workflows. The product is obvious on first load: Live, Replay, Optimize as
-              one operator loop.
+              A seeded control room for agent workflows. The shell should tell you what state the system is in, what
+              changed, and whether the next candidate deserves to ship.
             </p>
+            <div className="hero__current-state">
+              <div className="hero__state-copy">
+                <span className="hero__state-label">Current state</span>
+                <strong>{workflow.name}</strong>
+                <p>{workflow.description}</p>
+              </div>
+              <div className="hero__state-line">
+                <span className={`status-pill status-pill--${liveRun.status}`}>{titleCaseStatus(liveRun.status)}</span>
+                <span className="meta-chip">Replay focus: {failedReplayStep?.title ?? 'Healthy control'}</span>
+                <span className="meta-chip">Candidate: {candidateRun.experimentLabel}</span>
+              </div>
+            </div>
           </div>
-          <div className="hero__controls" aria-label="Demo controls">
-            <label className="select-field">
-              <span>Runtime</span>
-              <select aria-label="Runtime" value={runtimeId} onChange={(event) => setRuntimeId(event.target.value)}>
-                {demoState.runtimeOptions.map((option) => (
-                  <option key={option.id} value={option.id}>
-                    {option.label}
-                  </option>
-                ))}
-              </select>
-              <small>{demoState.runtimeOptions.find((option) => option.id === runtimeId)?.detail}</small>
-            </label>
-            <label className="select-field">
-              <span>Workflow</span>
-              <select aria-label="Workflow" value={workflowId} onChange={(event) => setWorkflowId(event.target.value)}>
-                {demoState.workflows.map((option) => (
-                  <option key={option.workflowId} value={option.workflowId}>
-                    {option.name}
-                  </option>
-                ))}
-              </select>
-              <small>{workflow.description}</small>
-            </label>
+          <div className="hero__console">
+            <div className="hero__controls" aria-label="Demo controls">
+              <div className="hero__controls-header">
+                <div>
+                  <p className="eyebrow">Command surface</p>
+                  <h2>Runtime and workflow</h2>
+                </div>
+                <span className="meta-chip">Demo operator view</span>
+              </div>
+              <label className="select-field">
+                <span>Runtime</span>
+                <select aria-label="Runtime" value={runtimeId} onChange={(event) => setRuntimeId(event.target.value)}>
+                  {demoState.runtimeOptions.map((option) => (
+                    <option key={option.id} value={option.id}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
+                <small>{selectedRuntime?.detail}</small>
+              </label>
+              <label className="select-field">
+                <span>Workflow</span>
+                <select aria-label="Workflow" value={workflowId} onChange={(event) => setWorkflowId(event.target.value)}>
+                  {demoState.workflows.map((option) => (
+                    <option key={option.workflowId} value={option.workflowId}>
+                      {option.name}
+                    </option>
+                  ))}
+                </select>
+                <small>{workflow.description}</small>
+              </label>
+            </div>
+            <div className="hero__status-grid">
+              <article className="hero-signal hero-signal--live">
+                <span className="hero-signal__label">Live posture</span>
+                <strong>{titleCaseStatus(liveRun.status)}</strong>
+                <p>{liveRun.experimentLabel}</p>
+                <div className="hero-signal__meta">
+                  <span>{formatCredits(liveRun.actualCredits)}</span>
+                  <span>{formatDuration(liveRun.durationMs)}</span>
+                </div>
+              </article>
+              <article className="hero-signal hero-signal--replay">
+                <span className="hero-signal__label">Replay pressure</span>
+                <strong>{failedReplayStep?.title ?? 'No failing step'}</strong>
+                <p>{failedReplayStep?.error ?? failedReplayStep?.summary ?? 'The latest run is healthy.'}</p>
+                <div className="hero-signal__meta">
+                  <span>{titleCaseStatus(replayRun.status)}</span>
+                  <span>{formatCredits(replayRun.actualCredits)}</span>
+                </div>
+              </article>
+              <article className="hero-signal hero-signal--optimize">
+                <span className="hero-signal__label">Release call</span>
+                <strong>{candidateCreditsDelta < 0 ? `${Math.abs(candidateCreditsDelta)} credits leaner` : 'Guardrails preserved'}</strong>
+                <p>{selectedWorkflowState.optimize.promotionSummary}</p>
+                <div className="hero-signal__meta">
+                  <span>{candidateDurationDeltaSeconds < 0 ? `${Math.abs(candidateDurationDeltaSeconds)}s faster` : 'No speed gain'}</span>
+                  <span>{selectedWorkflowState.optimize.candidatePlan?.name ?? 'Saved plan'}</span>
+                </div>
+              </article>
+            </div>
           </div>
         </header>
 
@@ -235,44 +321,77 @@ export function App() {
             <div>
               <p className="eyebrow">Control loop</p>
               <h2>Live, Replay, Optimize</h2>
+              <p className="muted overview-panel__body">One operating loop: inspect the live system, explain the weak run, then ship a safer candidate.</p>
             </div>
             <span className="meta-chip">Demo mode only</span>
           </div>
           <div className="overview-grid">
             <article className="overview-card overview-card--live">
-              <p className="eyebrow">Live</p>
-              <h3>{selectedWorkflowState.live.run.experimentLabel}</h3>
-              <p>{titleCaseStatus(selectedWorkflowState.live.run.status)} with a clean publish path and stable guardrails.</p>
-              <div className="overview-card__stats">
+              <div className="overview-card__header">
+                <div>
+                  <p className="eyebrow">01 · Live</p>
+                  <h3>{selectedWorkflowState.live.run.experimentLabel}</h3>
+                </div>
+                <span className={`status-pill status-pill--${selectedWorkflowState.live.run.status}`}>
+                  {titleCaseStatus(selectedWorkflowState.live.run.status)}
+                </span>
+              </div>
+              <p className="overview-card__summary">Operate the current system before you touch history or overrides.</p>
+              <div className="overview-card__metric">
+                <span>Current workflow</span>
+                <strong>{workflow.name}</strong>
+              </div>
+              <div className="overview-card__path">
                 <span>{formatCredits(selectedWorkflowState.live.run.actualCredits)}</span>
                 <span>{formatDuration(selectedWorkflowState.live.run.durationMs)}</span>
               </div>
             </article>
             <article className="overview-card overview-card--replay">
-              <p className="eyebrow">Replay</p>
-              <h3>{selectedWorkflowState.replay.run.experimentLabel}</h3>
-              <p>{selectedWorkflowState.replay.replay.stepExecutions.find((step) => step.status === 'failed')?.error}</p>
-              <div className="overview-card__stats">
-                <span>{titleCaseStatus(selectedWorkflowState.replay.run.status)}</span>
+              <div className="overview-card__header">
+                <div>
+                  <p className="eyebrow">02 · Replay</p>
+                  <h3>{selectedWorkflowState.replay.run.experimentLabel}</h3>
+                </div>
+                <span className={`status-pill status-pill--${selectedWorkflowState.replay.run.status}`}>
+                  {titleCaseStatus(selectedWorkflowState.replay.run.status)}
+                </span>
+              </div>
+              <p className="overview-card__summary">Find the exact break and turn it into the next fix, not another theory.</p>
+              <div className="overview-card__metric overview-card__metric--warning">
+                <span>Pressure point</span>
+                <strong>{failedReplayStep?.title ?? 'No failed step recorded'}</strong>
+              </div>
+              <div className="overview-card__path">
+                <span>{failedReplayStep?.assignedRole ?? 'reviewer'}</span>
                 <span>{formatCredits(selectedWorkflowState.replay.run.actualCredits)}</span>
               </div>
             </article>
             <article className="overview-card overview-card--optimize">
-              <p className="eyebrow">Optimize</p>
-              <h3>{selectedWorkflowState.optimize.candidateRun.experimentLabel}</h3>
-              <p>{selectedWorkflowState.optimize.promotionSummary}</p>
-              <div className="overview-card__stats">
+              <div className="overview-card__header">
+                <div>
+                  <p className="eyebrow">03 · Optimize</p>
+                  <h3>{selectedWorkflowState.optimize.candidateRun.experimentLabel}</h3>
+                </div>
+                <span className="status-pill status-pill--succeeded">Promotion-ready</span>
+              </div>
+              <p className="overview-card__summary">Compare the candidate against the healthy control and only ship what clearly improves the loop.</p>
+              <div className="overview-card__metric overview-card__metric--success">
+                <span>Release delta</span>
+                <strong>{candidateCreditsDelta < 0 ? `${Math.abs(candidateCreditsDelta)} credits saved` : 'Stable quality retained'}</strong>
+              </div>
+              <div className="overview-card__path">
                 <span>{selectedWorkflowState.optimize.candidatePlan?.name ?? 'Saved plan'}</span>
-                <span>{formatCredits(selectedWorkflowState.optimize.candidateRun.actualCredits)}</span>
+                <span>{candidateDurationDeltaSeconds < 0 ? `${Math.abs(candidateDurationDeltaSeconds)}s faster` : 'No speed gain'}</span>
               </div>
             </article>
           </div>
         </section>
 
         <section className="room-nav surface">
-          <div>
+          <div className="room-nav__intro">
             <p className="eyebrow">Room switcher</p>
-            <h2>Open one room at a time</h2>
+            <h2>Move through one mode at a time</h2>
+            <p className="muted">The mode switcher is the operating rhythm: observe, explain, release.</p>
           </div>
           <div className="room-nav__buttons" role="tablist" aria-label="Room switcher">
             {(['live', 'replay', 'optimize'] as RoomId[]).map((room) => (
@@ -280,11 +399,14 @@ export function App() {
                 key={room}
                 type="button"
                 role="tab"
+                aria-label={ROOM_LABELS[room].title}
                 aria-selected={selectedRoom === room}
                 className={`room-tab ${selectedRoom === room ? 'room-tab--active' : ''}`}
                 onClick={() => setSelectedRoom(room)}
               >
-                {room.charAt(0).toUpperCase() + room.slice(1)}
+                <span className="room-tab__path">{ROOM_LABELS[room].path}</span>
+                <strong>{ROOM_LABELS[room].title}</strong>
+                <small>{ROOM_LABELS[room].summary}</small>
               </button>
             ))}
           </div>

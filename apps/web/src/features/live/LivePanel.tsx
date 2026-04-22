@@ -22,19 +22,19 @@ export function LivePanel({ workflow, run, replay }: LivePanelProps) {
           <span className={`status-pill status-pill--${run.status}`}>{titleCaseStatus(run.status)}</span>
         </div>
         <div className="metric-grid">
-          <div>
+          <div className="metric-card metric-card--primary">
             <span>Latest run</span>
             <strong>{run.experimentLabel}</strong>
           </div>
-          <div>
+          <div className="metric-card">
             <span>Finished</span>
             <strong>{formatDateTime(run.finishedAt)}</strong>
           </div>
-          <div>
+          <div className="metric-card">
             <span>Duration</span>
             <strong>{formatDuration(run.durationMs)}</strong>
           </div>
-          <div>
+          <div className="metric-card metric-card--accent">
             <span>Actual spend</span>
             <strong>{formatCredits(run.actualCredits)}</strong>
           </div>
@@ -64,15 +64,15 @@ export function LivePanel({ workflow, run, replay }: LivePanelProps) {
         </div>
         <div className="timeline-list">
           {workflow.steps.map((step, index) => (
-            <article key={step.stepId} className="timeline-list__item">
+            <article key={step.stepId} className="timeline-list__item timeline-list__item--mapped">
               <div className="timeline-list__index">{index + 1}</div>
               <div>
                 <h4>{step.title}</h4>
                 <p>{step.objective}</p>
               </div>
               <div className="timeline-list__meta">
-                <span>{step.assignedRole}</span>
-                <span>{step.kind}</span>
+                <span className="meta-chip">{step.assignedRole}</span>
+                <span className="meta-chip">{step.kind}</span>
               </div>
             </article>
           ))}

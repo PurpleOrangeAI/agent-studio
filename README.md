@@ -4,6 +4,12 @@ The open control room for multi-agent systems.
 
 This repo currently gives you a seeded local control-room demo plus a LangGraph ingest path. Agent Studio is runtime-agnostic, replay-first, evidence-backed, and built around a safe release loop. It is not another agent builder and it is not a generic RAG chat tool.
 
+## Live demo
+
+- Public demo: https://agent-studio-sage.vercel.app
+
+![Agent Studio public demo](./docs/assets/agent-studio-demo.png)
+
 ## What ships here
 
 - `apps/web` for the public demo shell with `Live`, `Replay`, and `Optimize`

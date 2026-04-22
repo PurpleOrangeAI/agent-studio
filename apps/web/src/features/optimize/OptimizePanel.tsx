@@ -34,22 +34,26 @@ export function OptimizePanel({
           {promotionSummary} Optimize is the point where the public demo proves the loop closes back into a better next run.
         </p>
         <div className="metric-grid">
-          <div>
+          <div className="metric-card">
             <span>Baseline</span>
             <strong>{formatCredits(baselineRun.actualCredits)}</strong>
           </div>
-          <div>
+          <div className="metric-card metric-card--primary">
             <span>Candidate</span>
             <strong>{formatCredits(candidateRun.actualCredits)}</strong>
           </div>
-          <div>
+          <div className="metric-card metric-card--success">
             <span>Credits delta</span>
             <strong>{formatDelta(creditDelta)}</strong>
           </div>
-          <div>
+          <div className="metric-card metric-card--accent">
             <span>Duration delta</span>
             <strong>{formatDelta(durationDeltaSeconds)}s</strong>
           </div>
+        </div>
+        <div className="inline-callout inline-callout--success">
+          <span className="eyebrow">Release logic</span>
+          <p>The candidate is worth shipping because it kept the review guardrail intact while reducing spend and tightening the loop.</p>
         </div>
       </section>
 
@@ -64,14 +68,14 @@ export function OptimizePanel({
         <p className="feature-summary">{candidatePlan?.notes ?? 'No candidate notes recorded.'}</p>
         <div className="timeline-list">
           {candidateReplay.stepExecutions.map((step) => (
-            <article key={step.stepId} className="timeline-list__item">
+            <article key={step.stepId} className={`timeline-list__item timeline-list__item--${step.status}`}>
               <div className="timeline-list__index">{step.kind.slice(0, 1).toUpperCase()}</div>
               <div>
                 <h4>{step.title}</h4>
                 <p>{step.summary ?? 'No step summary recorded.'}</p>
               </div>
               <div className="timeline-list__meta">
-                <span>{step.modelTier ?? 'default'}</span>
+                <span className="meta-chip">{step.modelTier ?? 'default'}</span>
                 <span>{formatDuration(step.durationMs)}</span>
               </div>
             </article>
