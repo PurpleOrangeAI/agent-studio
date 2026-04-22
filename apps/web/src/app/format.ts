@@ -32,7 +32,8 @@ export function formatCredits(credits?: number) {
     return '—';
   }
 
-  return `${credits.toFixed(0)} cr`;
+  const rounded = Math.round(credits);
+  return `${rounded} ${Math.abs(rounded) === 1 ? 'credit' : 'credits'}`;
 }
 
 export function formatDelta(value: number) {

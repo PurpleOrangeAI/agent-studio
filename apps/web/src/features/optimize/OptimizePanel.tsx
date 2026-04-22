@@ -119,7 +119,7 @@ function formatMetricDelta(metric: string, value?: number | null, unit?: string)
   }
 
   if (metric === 'credits.actual') {
-    return `${formatDelta(value)} cr`;
+    return `${formatDelta(value)} ${Math.abs(Math.round(value)) === 1 ? 'credit' : 'credits'}`;
   }
 
   if (metric === 'duration.ms') {

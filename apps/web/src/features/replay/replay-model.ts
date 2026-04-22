@@ -111,7 +111,8 @@ export function formatSignedCreditsDelta(delta: number | null | undefined) {
   }
 
   const prefix = delta > 0 ? '+' : '';
-  return `${prefix}${delta.toFixed(0)} cr`;
+  const rounded = Math.round(delta);
+  return `${prefix}${rounded} ${Math.abs(rounded) === 1 ? 'credit' : 'credits'}`;
 }
 
 export function formatSignedDurationDelta(deltaMs: number | null | undefined) {

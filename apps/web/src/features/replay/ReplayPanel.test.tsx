@@ -256,7 +256,7 @@ describe('ReplayPanel', () => {
 
     expect(screen.getByRole('heading', { name: 'Execution tree' })).toBeInTheDocument();
     expect(screen.getByText('Baseline control')).toBeInTheDocument();
-    expect(screen.getByText('Spend +3 cr / Time +1m 20s')).toBeInTheDocument();
+    expect(screen.getByText('Spend +3 credits / Time +1m 20s')).toBeInTheDocument();
     expect(screen.getByText('1 root spans')).toBeInTheDocument();
     expect(screen.getByText('2 nested handoffs')).toBeInTheDocument();
     expect(container.querySelector('.replay-tree__children .replay-tree__children')).not.toBeNull();
@@ -277,7 +277,7 @@ describe('ReplayAdvancedPanel', () => {
     render(<ReplayAdvancedPanel replay={replay} controlPlane={controlPlaneFixture} />);
 
     expect(screen.getByText('Credit delta')).toBeInTheDocument();
-    expect(screen.getByText('+3 cr')).toBeInTheDocument();
+    expect(screen.getByText('+3 credits')).toBeInTheDocument();
     expect(screen.getByText('Root spans')).toBeInTheDocument();
     expect(screen.getByText('Deepest chain')).toBeInTheDocument();
     expect(screen.getByText('3 levels')).toBeInTheDocument();
