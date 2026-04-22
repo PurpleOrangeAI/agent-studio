@@ -1,9 +1,43 @@
-import type { OperationalContext, Replay, Run, StudioState, Workflow } from '@agent-studio/contracts';
-import { operationalContextSchema, replaySchema, runSchema, studioStateSchema, workflowSchema } from '@agent-studio/contracts';
+import type {
+  AgentDefinition,
+  ArtifactRecord,
+  EvaluationRecord,
+  ExecutionRecord,
+  InterventionRecord,
+  OperationalContext,
+  Replay,
+  ReleaseDecision,
+  Run,
+  RuntimeRegistration,
+  SpanRecord,
+  StudioState,
+  SystemDefinition,
+  TopologySnapshot,
+  Workflow,
+} from '@agent-studio/contracts';
+import {
+  agentDefinitionSchema,
+  artifactRecordSchema,
+  evaluationRecordSchema,
+  executionRecordSchema,
+  interventionRecordSchema,
+  metricSampleSchema,
+  operationalContextSchema,
+  replaySchema,
+  releaseDecisionSchema,
+  runSchema,
+  runtimeRegistrationSchema,
+  spanRecordSchema,
+  studioStateSchema,
+  systemDefinitionSchema,
+  topologySnapshotSchema,
+  workflowSchema,
+  type MetricSample,
+} from '@agent-studio/contracts';
 import { seededOperationalContexts, seededReplays } from '@agent-studio/demo';
 
+import { createSeededControlPlaneState } from './control-plane-seed.js';
 import {
-  cloneOperationalContext,
   cloneReplay,
   cloneRun,
   cloneStudioState,
@@ -12,12 +46,37 @@ import {
   type DemoStateResponse,
 } from './demo-state.js';
 
+function cloneRecord<T>(value: T): T {
+  return structuredClone(value);
+}
+
+function sortByLabel<T extends { label?: string; name?: string }>(values: T[]) {
+  return [...values].sort((left, right) => {
+    const leftLabel = left.label ?? left.name ?? '';
+    const rightLabel = right.label ?? right.name ?? '';
+
+    return leftLabel.localeCompare(rightLabel);
+  });
+}
+
 export class ApiStore {
   private readonly workflows = new Map<string, Workflow>();
   private readonly runs = new Map<string, Run>();
   private readonly replays = new Map<string, Replay>();
   private readonly operationalContexts = new Map<string, OperationalContext>();
   private readonly studioStates = new Map<string, StudioState>();
+
+  private readonly runtimes = new Map<string, RuntimeRegistration>();
+  private readonly systems = new Map<string, SystemDefinition>();
+  private readonly agents = new Map<string, AgentDefinition>();
+  private readonly topologySnapshots = new Map<string, TopologySnapshot[]>();
+  private readonly executions = new Map<string, ExecutionRecord>();
+  private readonly spans = new Map<string, SpanRecord>();
+  private readonly artifacts = new Map<string, ArtifactRecord>();
+  private readonly metrics = new Map<string, MetricSample>();
+  private readonly interventions = new Map<string, InterventionRecord>();
+  private readonly evaluations = new Map<string, EvaluationRecord>();
+  private readonly releaseDecisions = new Map<string, ReleaseDecision>();
 
   constructor(seed = createSeededDemoState()) {
     seed.workflows.forEach((workflow) => this.workflows.set(workflow.workflowId, cloneWorkflow(workflow)));
@@ -33,15 +92,30 @@ export class ApiStore {
     });
 
     Object.values(seededOperationalContexts).forEach((context) => {
-      operationalContextSchema.parse(context);
-      this.operationalContexts.set(context.runId, cloneOperationalContext(context));
+      const parsed = operationalContextSchema.parse(context);
+      this.operationalContexts.set(parsed.runId ?? `${parsed.workflowId}:${parsed.generatedAt}`, cloneRecord(parsed));
     });
+
+    const controlPlaneSeed = createSeededControlPlaneState(seed);
+    controlPlaneSeed.runtimes.forEach((runtime) => this.runtimes.set(runtime.runtimeId, cloneRecord(runtime)));
+    controlPlaneSeed.systems.forEach((system) => this.systems.set(system.systemId, cloneRecord(system)));
+    controlPlaneSeed.agents.forEach((agent) => this.agents.set(agent.agentId, cloneRecord(agent)));
+    controlPlaneSeed.topologySnapshots.forEach((snapshot) => this.upsertTopologySnapshot(snapshot));
+    controlPlaneSeed.executions.forEach((execution) => this.executions.set(execution.executionId, cloneRecord(execution)));
+    controlPlaneSeed.spans.forEach((span) => this.spans.set(span.spanId, cloneRecord(span)));
+    controlPlaneSeed.artifacts.forEach((artifact) => this.artifacts.set(artifact.artifactId, cloneRecord(artifact)));
+    controlPlaneSeed.metrics.forEach((metric) => this.metrics.set(metric.sampleId, cloneRecord(metric)));
+    controlPlaneSeed.interventions.forEach((intervention) =>
+      this.interventions.set(intervention.interventionId, cloneRecord(intervention)),
+    );
+    controlPlaneSeed.evaluations.forEach((evaluation) => this.evaluations.set(evaluation.evaluationId, cloneRecord(evaluation)));
+    controlPlaneSeed.releaseDecisions.forEach((releaseDecision) =>
+      this.releaseDecisions.set(releaseDecision.releaseId, cloneRecord(releaseDecision)),
+    );
   }
 
   listWorkflows(): Workflow[] {
-    return [...this.workflows.values()]
-      .map((workflow) => cloneWorkflow(workflow))
-      .sort((left, right) => left.name.localeCompare(right.name));
+    return sortByLabel([...this.workflows.values()]).map((workflow) => cloneWorkflow(workflow));
   }
 
   getWorkflow(workflowId: string): Workflow | undefined {
@@ -94,7 +168,7 @@ export class ApiStore {
     this.replays.set(parsed.run.runId, cloneReplay(parsed));
 
     if (parsed.operationalContext?.runId) {
-      this.operationalContexts.set(parsed.operationalContext.runId, cloneOperationalContext(parsed.operationalContext));
+      this.operationalContexts.set(parsed.operationalContext.runId, cloneRecord(parsed.operationalContext));
     }
 
     if (parsed.studioState) {
@@ -107,21 +181,251 @@ export class ApiStore {
   getOperationalContext(runId: string): OperationalContext | undefined {
     const operationalContext = this.operationalContexts.get(runId);
 
-    return operationalContext ? cloneOperationalContext(operationalContext) : undefined;
+    return operationalContext ? cloneRecord(operationalContext) : undefined;
   }
 
   upsertOperationalContext(operationalContext: OperationalContext): OperationalContext {
     const parsed = operationalContextSchema.parse(operationalContext);
     const key = parsed.runId ?? `${parsed.workflowId}:${parsed.generatedAt}`;
-    this.operationalContexts.set(key, cloneOperationalContext(parsed));
+    this.operationalContexts.set(key, cloneRecord(parsed));
 
-    return cloneOperationalContext(parsed);
+    return cloneRecord(parsed);
   }
 
   getStudioState(workflowId: string): StudioState | undefined {
     const studioState = this.studioStates.get(workflowId);
 
     return studioState ? cloneStudioState(studioState) : undefined;
+  }
+
+  listRuntimes(): RuntimeRegistration[] {
+    return sortByLabel([...this.runtimes.values()]).map((runtime) => cloneRecord(runtime));
+  }
+
+  getRuntime(runtimeId: string): RuntimeRegistration | undefined {
+    const runtime = this.runtimes.get(runtimeId);
+
+    return runtime ? cloneRecord(runtime) : undefined;
+  }
+
+  upsertRuntime(runtime: RuntimeRegistration): RuntimeRegistration {
+    const parsed = runtimeRegistrationSchema.parse(runtime);
+    this.runtimes.set(parsed.runtimeId, cloneRecord(parsed));
+
+    return cloneRecord(parsed);
+  }
+
+  upsertRuntimes(runtimes: RuntimeRegistration[]) {
+    return runtimes.map((runtime) => this.upsertRuntime(runtime));
+  }
+
+  listSystems(): SystemDefinition[] {
+    return sortByLabel([...this.systems.values()]).map((system) => cloneRecord(system));
+  }
+
+  getSystem(systemId: string): SystemDefinition | undefined {
+    const system = this.systems.get(systemId);
+
+    return system ? cloneRecord(system) : undefined;
+  }
+
+  upsertSystem(system: SystemDefinition): SystemDefinition {
+    const parsed = systemDefinitionSchema.parse(system);
+    this.systems.set(parsed.systemId, cloneRecord(parsed));
+
+    return cloneRecord(parsed);
+  }
+
+  upsertSystems(systems: SystemDefinition[]) {
+    return systems.map((system) => this.upsertSystem(system));
+  }
+
+  listAgentsBySystem(systemId: string): AgentDefinition[] {
+    return sortByLabel([...this.agents.values()].filter((agent) => agent.systemId === systemId)).map((agent) => cloneRecord(agent));
+  }
+
+  getAgent(agentId: string): AgentDefinition | undefined {
+    const agent = this.agents.get(agentId);
+
+    return agent ? cloneRecord(agent) : undefined;
+  }
+
+  upsertAgent(agent: AgentDefinition): AgentDefinition {
+    const parsed = agentDefinitionSchema.parse(agent);
+    this.agents.set(parsed.agentId, cloneRecord(parsed));
+
+    return cloneRecord(parsed);
+  }
+
+  upsertAgents(agents: AgentDefinition[]) {
+    return agents.map((agent) => this.upsertAgent(agent));
+  }
+
+  getLatestTopologySnapshot(systemId: string): TopologySnapshot | undefined {
+    const snapshots = this.topologySnapshots.get(systemId) ?? [];
+    const latest = [...snapshots].sort((left, right) => right.capturedAt.localeCompare(left.capturedAt))[0];
+
+    return latest ? cloneRecord(latest) : undefined;
+  }
+
+  upsertTopologySnapshot(snapshot: TopologySnapshot): TopologySnapshot {
+    const parsed = topologySnapshotSchema.parse(snapshot);
+    const current = this.topologySnapshots.get(parsed.systemId) ?? [];
+    const next = current.filter((item) => item.snapshotId !== parsed.snapshotId);
+    next.push(cloneRecord(parsed));
+    this.topologySnapshots.set(parsed.systemId, next);
+
+    return cloneRecord(parsed);
+  }
+
+  upsertTopologySnapshots(snapshots: TopologySnapshot[]) {
+    return snapshots.map((snapshot) => this.upsertTopologySnapshot(snapshot));
+  }
+
+  listExecutionsBySystem(systemId: string): ExecutionRecord[] {
+    return [...this.executions.values()]
+      .filter((execution) => execution.systemId === systemId)
+      .sort((left, right) => right.startedAt.localeCompare(left.startedAt))
+      .map((execution) => cloneRecord(execution));
+  }
+
+  getExecution(executionId: string): ExecutionRecord | undefined {
+    const execution = this.executions.get(executionId);
+
+    return execution ? cloneRecord(execution) : undefined;
+  }
+
+  upsertExecution(execution: ExecutionRecord): ExecutionRecord {
+    const parsed = executionRecordSchema.parse(execution);
+    this.executions.set(parsed.executionId, cloneRecord(parsed));
+
+    return cloneRecord(parsed);
+  }
+
+  upsertExecutions(executions: ExecutionRecord[]) {
+    return executions.map((execution) => this.upsertExecution(execution));
+  }
+
+  listSpansByExecution(executionId: string): SpanRecord[] {
+    return [...this.spans.values()]
+      .filter((span) => span.executionId === executionId)
+      .sort((left, right) => left.startedAt.localeCompare(right.startedAt))
+      .map((span) => cloneRecord(span));
+  }
+
+  upsertSpan(span: SpanRecord): SpanRecord {
+    const parsed = spanRecordSchema.parse(span);
+    this.spans.set(parsed.spanId, cloneRecord(parsed));
+
+    return cloneRecord(parsed);
+  }
+
+  upsertSpans(spans: SpanRecord[]) {
+    return spans.map((span) => this.upsertSpan(span));
+  }
+
+  listArtifactsByExecution(executionId: string): ArtifactRecord[] {
+    return [...this.artifacts.values()]
+      .filter((artifact) => artifact.executionId === executionId)
+      .map((artifact) => cloneRecord(artifact));
+  }
+
+  upsertArtifact(artifact: ArtifactRecord): ArtifactRecord {
+    const parsed = artifactRecordSchema.parse(artifact);
+    this.artifacts.set(parsed.artifactId, cloneRecord(parsed));
+
+    return cloneRecord(parsed);
+  }
+
+  upsertArtifacts(artifacts: ArtifactRecord[]) {
+    return artifacts.map((artifact) => this.upsertArtifact(artifact));
+  }
+
+  listMetricsByScope(scopeType: string, scopeId: string): MetricSample[] {
+    return [...this.metrics.values()]
+      .filter((metric) => metric.scopeType === scopeType && metric.scopeId === scopeId)
+      .sort((left, right) => left.ts.localeCompare(right.ts))
+      .map((metric) => cloneRecord(metric));
+  }
+
+  upsertMetric(metric: MetricSample): MetricSample {
+    const parsed = metricSampleSchema.parse(metric);
+    this.metrics.set(parsed.sampleId, cloneRecord(parsed));
+
+    return cloneRecord(parsed);
+  }
+
+  upsertMetrics(metrics: MetricSample[]) {
+    return metrics.map((metric) => this.upsertMetric(metric));
+  }
+
+  listInterventionsBySystem(systemId: string): InterventionRecord[] {
+    const agents = this.listAgentsBySystem(systemId);
+    const executions = this.listExecutionsBySystem(systemId);
+    const agentIds = new Set(agents.map((agent) => agent.agentId));
+    const traceIds = new Set(executions.map((execution) => execution.traceId));
+
+    return [...this.interventions.values()]
+      .filter((intervention) => {
+        if (intervention.targetScopeType === 'system' && intervention.targetScopeId === systemId) {
+          return true;
+        }
+
+        if (intervention.targetScopeType === 'agent' && agentIds.has(intervention.targetScopeId)) {
+          return true;
+        }
+
+        return intervention.relatedTraceId ? traceIds.has(intervention.relatedTraceId) : false;
+      })
+      .sort((left, right) => right.requestedAt.localeCompare(left.requestedAt))
+      .map((intervention) => cloneRecord(intervention));
+  }
+
+  upsertIntervention(intervention: InterventionRecord): InterventionRecord {
+    const parsed = interventionRecordSchema.parse(intervention);
+    this.interventions.set(parsed.interventionId, cloneRecord(parsed));
+
+    return cloneRecord(parsed);
+  }
+
+  upsertInterventions(interventions: InterventionRecord[]) {
+    return interventions.map((intervention) => this.upsertIntervention(intervention));
+  }
+
+  listEvaluationsBySystem(systemId: string): EvaluationRecord[] {
+    return [...this.evaluations.values()]
+      .filter((evaluation) => evaluation.targetScopeType === 'system' && evaluation.targetScopeId === systemId)
+      .sort((left, right) => right.createdAt.localeCompare(left.createdAt))
+      .map((evaluation) => cloneRecord(evaluation));
+  }
+
+  upsertEvaluation(evaluation: EvaluationRecord): EvaluationRecord {
+    const parsed = evaluationRecordSchema.parse(evaluation);
+    this.evaluations.set(parsed.evaluationId, cloneRecord(parsed));
+
+    return cloneRecord(parsed);
+  }
+
+  upsertEvaluations(evaluations: EvaluationRecord[]) {
+    return evaluations.map((evaluation) => this.upsertEvaluation(evaluation));
+  }
+
+  listReleaseDecisionsBySystem(systemId: string): ReleaseDecision[] {
+    return [...this.releaseDecisions.values()]
+      .filter((releaseDecision) => releaseDecision.systemId === systemId)
+      .sort((left, right) => right.requestedAt.localeCompare(left.requestedAt))
+      .map((releaseDecision) => cloneRecord(releaseDecision));
+  }
+
+  upsertReleaseDecision(releaseDecision: ReleaseDecision): ReleaseDecision {
+    const parsed = releaseDecisionSchema.parse(releaseDecision);
+    this.releaseDecisions.set(parsed.releaseId, cloneRecord(parsed));
+
+    return cloneRecord(parsed);
+  }
+
+  upsertReleaseDecisions(releaseDecisions: ReleaseDecision[]) {
+    return releaseDecisions.map((releaseDecision) => this.upsertReleaseDecision(releaseDecision));
   }
 
   private buildDemoWorkflowState(workflow: Workflow): DemoStateResponse['workflowStates'][string] | null {

@@ -80,6 +80,203 @@ describe('Agent Studio API', () => {
     );
   });
 
+  it('serves the seeded control-plane registry and telemetry surfaces', async () => {
+    const app = createApiApp();
+
+    const systemsResponse = await app.handle(new Request('http://agent-studio.test/api/control/systems'));
+    expect(systemsResponse.status).toBe(200);
+    const systemsPayload = (await systemsResponse.json()) as {
+      items: Array<{ systemId: string; name: string }>;
+    };
+    expect(systemsPayload.items).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          name: seededWorkflow.name,
+        }),
+      ]),
+    );
+
+    const systemId = systemsPayload.items[0]?.systemId;
+    expect(systemId).toBeTruthy();
+
+    const agentsResponse = await app.handle(new Request(`http://agent-studio.test/api/control/systems/${systemId}/agents`));
+    expect(agentsResponse.status).toBe(200);
+    await expect(agentsResponse.json()).resolves.toEqual(
+      expect.objectContaining({
+        items: expect.arrayContaining([
+          expect.objectContaining({
+            label: expect.any(String),
+            runtimeId: expect.any(String),
+          }),
+        ]),
+      }),
+    );
+
+    const topologyResponse = await app.handle(new Request(`http://agent-studio.test/api/control/systems/${systemId}/topology`));
+    expect(topologyResponse.status).toBe(200);
+    await expect(topologyResponse.json()).resolves.toEqual(
+      expect.objectContaining({
+        item: expect.objectContaining({
+          systemId,
+          nodes: expect.any(Array),
+          edges: expect.any(Array),
+        }),
+      }),
+    );
+
+    const executionsResponse = await app.handle(new Request(`http://agent-studio.test/api/control/systems/${systemId}/executions`));
+    expect(executionsResponse.status).toBe(200);
+    const executionsPayload = (await executionsResponse.json()) as {
+      items: Array<{ executionId: string; traceId: string }>;
+    };
+    expect(executionsPayload.items.length).toBeGreaterThan(0);
+
+    const executionId = executionsPayload.items[0]?.executionId;
+    expect(executionId).toBeTruthy();
+
+    const spansResponse = await app.handle(new Request(`http://agent-studio.test/api/control/executions/${executionId}/spans`));
+    expect(spansResponse.status).toBe(200);
+    await expect(spansResponse.json()).resolves.toEqual(
+      expect.objectContaining({
+        items: expect.arrayContaining([
+          expect.objectContaining({
+            executionId,
+            name: expect.any(String),
+          }),
+        ]),
+      }),
+    );
+  });
+
+  it('accepts batched control-plane ingest payloads and exposes them through registry routes', async () => {
+    const app = createApiApp();
+    const runtimeId = 'runtime_test_custom';
+    const systemId = 'system_test_custom';
+    const executionId = 'execution_test_custom';
+
+    const runtimesResponse = await app.handle(
+      new Request('http://agent-studio.test/api/control/ingest/runtimes', {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+        },
+        body: JSON.stringify([
+          {
+            runtimeId,
+            kind: 'custom',
+            adapterId: 'custom-rest',
+            label: 'Custom runtime',
+          },
+        ]),
+      }),
+    );
+
+    expect(runtimesResponse.status).toBe(201);
+
+    const systemsResponse = await app.handle(
+      new Request('http://agent-studio.test/api/control/ingest/systems', {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+        },
+        body: JSON.stringify({
+          systemId,
+          workspaceId: seededWorkflow.workspaceId,
+          name: 'Imported custom system',
+          runtimeIds: [runtimeId],
+        }),
+      }),
+    );
+
+    expect(systemsResponse.status).toBe(201);
+
+    const agentsResponse = await app.handle(
+      new Request('http://agent-studio.test/api/control/ingest/agents', {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+        },
+        body: JSON.stringify({
+          agentId: 'agent_test_custom',
+          systemId,
+          runtimeId,
+          label: 'Custom analyst',
+          kind: 'specialist',
+        }),
+      }),
+    );
+
+    expect(agentsResponse.status).toBe(201);
+
+    const executionsResponse = await app.handle(
+      new Request('http://agent-studio.test/api/control/ingest/executions', {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+        },
+        body: JSON.stringify({
+          executionId,
+          systemId,
+          runtimeId,
+          traceId: 'trace_test_custom',
+          status: 'running',
+          startedAt: '2026-04-22T15:00:00.000Z',
+        }),
+      }),
+    );
+
+    expect(executionsResponse.status).toBe(201);
+
+    const spansResponse = await app.handle(
+      new Request('http://agent-studio.test/api/control/ingest/spans', {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+        },
+        body: JSON.stringify([
+          {
+            spanId: 'span_test_custom_1',
+            traceId: 'trace_test_custom',
+            executionId,
+            agentId: 'agent_test_custom',
+            name: 'Collect custom evidence',
+            kind: 'search',
+            status: 'running',
+            startedAt: '2026-04-22T15:00:05.000Z',
+          },
+        ]),
+      }),
+    );
+
+    expect(spansResponse.status).toBe(201);
+
+    const readSystemResponse = await app.handle(new Request(`http://agent-studio.test/api/control/systems/${systemId}`));
+    expect(readSystemResponse.status).toBe(200);
+    await expect(readSystemResponse.json()).resolves.toEqual(
+      expect.objectContaining({
+        item: expect.objectContaining({
+          systemId,
+          runtimeIds: [runtimeId],
+        }),
+      }),
+    );
+
+    const readExecutionResponse = await app.handle(
+      new Request(`http://agent-studio.test/api/control/executions/${executionId}/spans`),
+    );
+    expect(readExecutionResponse.status).toBe(200);
+    await expect(readExecutionResponse.json()).resolves.toEqual(
+      expect.objectContaining({
+        items: expect.arrayContaining([
+          expect.objectContaining({
+            spanId: 'span_test_custom_1',
+            executionId,
+          }),
+        ]),
+      }),
+    );
+  });
+
   it('rejects ingest payloads that do not match the shared contracts', async () => {
     const app = createApiApp();
 

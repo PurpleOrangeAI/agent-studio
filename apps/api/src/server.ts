@@ -1,5 +1,6 @@
 import { createServer } from 'node:http';
 
+import { handleControlIngestRoutes, handleControlReadRoutes } from './routes/control.js';
 import { handleDemoRoutes } from './routes/demo.js';
 import { handleIngestRoutes } from './routes/ingest.js';
 import { handleReplayRoutes } from './routes/replay.js';
@@ -54,11 +55,21 @@ export function createApiApp(store = new ApiStore()): ApiApp {
         if (runResponse) {
           return runResponse;
         }
+
+        const controlResponse = handleControlReadRoutes(url.pathname, store);
+        if (controlResponse) {
+          return controlResponse;
+        }
       }
 
       const ingestResponse = await handleIngestRoutes(request, url.pathname, store);
       if (ingestResponse) {
         return ingestResponse;
+      }
+
+      const controlIngestResponse = await handleControlIngestRoutes(request, url.pathname, store);
+      if (controlIngestResponse) {
+        return controlIngestResponse;
       }
 
       return errorResponse(404, `No route matched ${request.method} ${url.pathname}.`);

@@ -1,4 +1,5 @@
 export * from './types.js';
+export * from './control-plane-types.js';
 export {
   directiveModeSchema,
   executionModeSchema,
@@ -27,3 +28,21 @@ export {
   workflowStepSchema,
   workspaceSchema,
 } from './schemas.js';
+export {
+  agentDefinitionSchema,
+  artifactRecordSchema,
+  evaluationRecordSchema,
+  executionRecordSchema,
+  interventionRecordSchema,
+  metricDeltaSchema,
+  metricSampleSchema,
+  releaseDecisionSchema,
+  runtimeRegistrationSchema,
+  spanLinkSchema,
+  spanRecordSchema,
+  systemDefinitionSchema,
+  topologyEdgeSchema,
+  topologyNodeSchema,
+  topologySnapshotSchema,
+  usageStatsSchema,
+} from './control-plane-schemas.js';
