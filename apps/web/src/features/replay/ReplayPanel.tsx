@@ -26,19 +26,19 @@ export function ReplayPanel({ replay, baselineRun }: ReplayPanelProps) {
           not to bury it in generic analytics.
         </p>
         <div className="metric-grid">
-          <div>
+          <div className="metric-card metric-card--warning">
             <span>Failed at</span>
             <strong>{failedStep?.title ?? 'No failed step'}</strong>
           </div>
-          <div>
+          <div className="metric-card">
             <span>Actual spend</span>
             <strong>{formatCredits(replay.run.actualCredits)}</strong>
           </div>
-          <div>
+          <div className="metric-card">
             <span>Duration</span>
             <strong>{formatDuration(replay.run.durationMs)}</strong>
           </div>
-          <div>
+          <div className="metric-card metric-card--primary">
             <span>Healthy control</span>
             <strong>{baselineRun.experimentLabel}</strong>
           </div>
@@ -61,13 +61,14 @@ export function ReplayPanel({ replay, baselineRun }: ReplayPanelProps) {
         </div>
         <div className="timeline-list">
           {replay.stepExecutions.map((step) => (
-            <article key={step.stepId} className="timeline-list__item">
+            <article key={step.stepId} className={`timeline-list__item timeline-list__item--${step.status}`}>
               <div className={`timeline-list__index timeline-list__index--${step.status}`} />
               <div>
                 <h4>{step.title}</h4>
                 <p>{step.summary ?? step.error ?? 'No step summary recorded.'}</p>
               </div>
               <div className="timeline-list__meta">
+                <span className={`status-pill status-pill--${step.status}`}>{titleCaseStatus(step.status)}</span>
                 <span>{step.assignedRole}</span>
                 <span>{formatCredits(step.actualCredits)}</span>
               </div>
