@@ -1,13 +1,15 @@
 import { useMemo, useState } from 'react';
 
-import type { SystemHistoryEvent, ControlPlaneSystemState } from '../../app/control-plane';
-import { buildSystemHistoryEvents, getAgentLabel } from '../../app/control-plane';
+import type { AnalyticsWindow, SystemHistoryEvent, ControlPlaneSystemState } from '../../app/control-plane';
+import { buildSystemHistoryEvents, getAgentLabel, getAnalyticsWindowLabel } from '../../app/control-plane';
 import { formatDateTime, titleCaseStatus } from '../../app/format';
 
 type HistoryFilter = 'all' | SystemHistoryEvent['kind'];
+type HistoryStatusFilter = 'all' | 'attention' | 'healthy' | 'active';
 
 interface SystemHistoryPanelProps {
   systemState: ControlPlaneSystemState | null;
+  analyticsWindow: AnalyticsWindow;
 }
 
 const FILTERS: Array<{ id: HistoryFilter; label: string }> = [
@@ -18,16 +20,39 @@ const FILTERS: Array<{ id: HistoryFilter; label: string }> = [
   { id: 'release', label: 'Releases' },
 ];
 
-export function SystemHistoryPanel({ systemState }: SystemHistoryPanelProps) {
+const STATUS_FILTERS: Array<{ id: HistoryStatusFilter; label: string }> = [
+  { id: 'all', label: 'All statuses' },
+  { id: 'attention', label: 'Attention' },
+  { id: 'healthy', label: 'Healthy' },
+  { id: 'active', label: 'Active' },
+];
+
+function matchesStatusFilter(event: SystemHistoryEvent, filter: HistoryStatusFilter) {
+  if (filter === 'all') {
+    return true;
+  }
+
+  if (filter === 'attention') {
+    return ['failed', 'hold', 'rollback'].includes(event.status);
+  }
+
+  if (filter === 'healthy') {
+    return ['succeeded', 'approved', 'promoted', 'released'].includes(event.status);
+  }
+
+  return ['running', 'active', 'applied', 'recorded'].includes(event.status);
+}
+
+export function SystemHistoryPanel({ systemState, analyticsWindow }: SystemHistoryPanelProps) {
   const [filter, setFilter] = useState<HistoryFilter>('all');
+  const [statusFilter, setStatusFilter] = useState<HistoryStatusFilter>('all');
   const history = useMemo(() => buildSystemHistoryEvents(systemState), [systemState]);
   const filteredHistory = useMemo(() => {
-    if (filter === 'all') {
-      return history;
-    }
-
-    return history.filter((event) => event.kind === filter);
-  }, [filter, history]);
+    return history.filter((event) => {
+      const matchesKind = filter === 'all' ? true : event.kind === filter;
+      return matchesKind && matchesStatusFilter(event, statusFilter);
+    });
+  }, [filter, history, statusFilter]);
 
   if (!systemState) {
     return null;
@@ -44,7 +69,9 @@ export function SystemHistoryPanel({ systemState }: SystemHistoryPanelProps) {
             stream.
           </p>
         </div>
-        <span className="meta-chip">{history.length} events</span>
+        <span className="meta-chip">
+          {filteredHistory.length} events · {getAnalyticsWindowLabel(analyticsWindow)}
+        </span>
       </div>
       <div className="history-toolbar">
         {FILTERS.map((item) => (
@@ -53,6 +80,18 @@ export function SystemHistoryPanel({ systemState }: SystemHistoryPanelProps) {
             type="button"
             className={`history-filter ${filter === item.id ? 'history-filter--active' : ''}`}
             onClick={() => setFilter(item.id)}
+          >
+            {item.label}
+          </button>
+        ))}
+      </div>
+      <div className="history-toolbar">
+        {STATUS_FILTERS.map((item) => (
+          <button
+            key={item.id}
+            type="button"
+            className={`history-filter ${statusFilter === item.id ? 'history-filter--active' : ''}`}
+            onClick={() => setStatusFilter(item.id)}
           >
             {item.label}
           </button>

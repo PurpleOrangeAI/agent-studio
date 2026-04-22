@@ -1,5 +1,5 @@
 import { vi } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { fireEvent, render, screen } from '@testing-library/react';
 
 import type { ControlPlaneState } from './control-plane';
 import type { DemoState } from './demo';
@@ -559,13 +559,21 @@ describe('App shell', () => {
     render(<App />);
 
     expect(await screen.findByLabelText(/^runtime$/i)).toHaveValue('runtime_imported');
+    expect(screen.getByRole('heading', { level: 2, name: /time-windowed system view/i })).toBeInTheDocument();
     expect(screen.getByText(/fleet analytics/i)).toBeInTheDocument();
     expect(
       screen.getByRole('heading', { level: 2, name: /pressure, failures, and recent activity/i }),
     ).toBeInTheDocument();
     expect(screen.getByRole('heading', { level: 2, name: /what changed in this system/i })).toBeInTheDocument();
-    expect(screen.getByText(/recent failures and holds/i)).toBeInTheDocument();
+    expect(screen.getByText(/window posture/i)).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /releases/i })).toBeInTheDocument();
     expect(screen.getByText(/history persistent/i)).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: /^24h$/i }));
+    expect(screen.getAllByText(/24h window/i).length).toBeGreaterThan(0);
+    expect(screen.getByText(/1 tracked execution/i)).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: /^failures$/i }));
+    expect(screen.getByText(/1 visible · 24h/i)).toBeInTheDocument();
   });
 });

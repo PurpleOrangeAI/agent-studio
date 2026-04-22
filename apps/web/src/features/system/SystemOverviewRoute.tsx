@@ -1,5 +1,16 @@
+import { useMemo, useState } from 'react';
+
 import type { DemoState, WorkflowDemoState } from '../../app/demo';
-import { getAgentLabel, summarizeSystem, type ControlPlaneStorageInfo, type ControlPlaneSystemState } from '../../app/control-plane';
+import {
+  ANALYTICS_WINDOW_OPTIONS,
+  filterSystemStateByWindow,
+  getAgentLabel,
+  getAnalyticsWindowLabel,
+  summarizeSystem,
+  type AnalyticsWindow,
+  type ControlPlaneStorageInfo,
+  type ControlPlaneSystemState,
+} from '../../app/control-plane';
 import { formatCredits, formatDuration, titleCaseStatus } from '../../app/format';
 import { AgentDetailPanel } from './AgentDetailPanel';
 import { AgentFleetPanel } from './AgentFleetPanel';
@@ -37,10 +48,16 @@ export function SystemOverviewRoute({
   onSelectSystem,
   onSelectAgent,
 }: SystemOverviewRouteProps) {
-  const selectedSystemSummary = summarizeSystem(selectedSystem);
-  const pressureAgentLabel = getAgentLabel(selectedSystem, selectedSystemSummary?.pressureAgentId ?? undefined);
+  const [analyticsWindow, setAnalyticsWindow] = useState<AnalyticsWindow>('7d');
+  const windowedSystemState = useMemo(
+    () => filterSystemStateByWindow(selectedSystem, analyticsWindow),
+    [selectedSystem, analyticsWindow],
+  );
+  const selectedSystemSummary = summarizeSystem(windowedSystemState);
+  const pressureAgentLabel = getAgentLabel(windowedSystemState, selectedSystemSummary?.pressureAgentId ?? undefined);
   const latestRelease = selectedSystemSummary?.latestRelease ?? null;
   const latestEvaluation = selectedSystemSummary?.latestEvaluation ?? null;
+  const windowLabel = getAnalyticsWindowLabel(analyticsWindow);
 
   if (!selectedWorkflowState) {
     return (
@@ -56,17 +73,46 @@ export function SystemOverviewRoute({
         {selectedSystem ? (
           <section className="system-layout">
             <AgentFleetPanel
-              systemState={selectedSystem}
+              systemState={windowedSystemState}
               selectedAgentId={selectedAgentId}
               onSelectAgent={onSelectAgent}
+              analyticsWindow={analyticsWindow}
             />
-            <AgentDetailPanel systemState={selectedSystem} agentId={selectedAgentId} />
+            <AgentDetailPanel systemState={windowedSystemState} agentId={selectedAgentId} />
           </section>
         ) : null}
 
-        {selectedSystem ? <SystemPerformancePanel systemState={selectedSystem} storage={storage} /> : null}
-        {selectedSystem ? <FleetAnalyticsPanel systemState={selectedSystem} /> : null}
-        {selectedSystem ? <SystemHistoryPanel systemState={selectedSystem} /> : null}
+        {selectedSystem ? (
+          <section className="surface analytics-query-panel">
+            <div className="section-header">
+              <div>
+                <p className="eyebrow">Analytics scope</p>
+                <h2>Time-windowed system view</h2>
+                <p className="muted">
+                  Filter the control-plane history first. Performance, fleet pressure, and system history all follow
+                  the same window so the operator view stays consistent.
+                </p>
+              </div>
+              <span className="meta-chip">{windowLabel} window</span>
+            </div>
+            <div className="history-toolbar">
+              {ANALYTICS_WINDOW_OPTIONS.map((option) => (
+                <button
+                  key={option.id}
+                  type="button"
+                  className={`history-filter ${analyticsWindow === option.id ? 'history-filter--active' : ''}`}
+                  onClick={() => setAnalyticsWindow(option.id)}
+                >
+                  {option.label}
+                </button>
+              ))}
+            </div>
+          </section>
+        ) : null}
+
+        {selectedSystem ? <SystemPerformancePanel systemState={windowedSystemState} storage={storage} analyticsWindow={analyticsWindow} /> : null}
+        {selectedSystem ? <FleetAnalyticsPanel systemState={windowedSystemState} analyticsWindow={analyticsWindow} /> : null}
+        {selectedSystem ? <SystemHistoryPanel systemState={windowedSystemState} analyticsWindow={analyticsWindow} /> : null}
 
         <section className="surface overview-panel">
           <div className="section-header">
@@ -173,17 +219,46 @@ export function SystemOverviewRoute({
       {selectedSystem ? (
         <section className="system-layout">
           <AgentFleetPanel
-            systemState={selectedSystem}
+            systemState={windowedSystemState}
             selectedAgentId={selectedAgentId}
             onSelectAgent={onSelectAgent}
+            analyticsWindow={analyticsWindow}
           />
-          <AgentDetailPanel systemState={selectedSystem} agentId={selectedAgentId} />
+          <AgentDetailPanel systemState={windowedSystemState} agentId={selectedAgentId} />
         </section>
       ) : null}
 
-      {selectedSystem ? <SystemPerformancePanel systemState={selectedSystem} storage={storage} /> : null}
-      {selectedSystem ? <FleetAnalyticsPanel systemState={selectedSystem} /> : null}
-      {selectedSystem ? <SystemHistoryPanel systemState={selectedSystem} /> : null}
+      {selectedSystem ? (
+        <section className="surface analytics-query-panel">
+          <div className="section-header">
+            <div>
+              <p className="eyebrow">Analytics scope</p>
+              <h2>Time-windowed system view</h2>
+              <p className="muted">
+                Filter the control-plane history first. Performance, fleet pressure, and system history all follow the
+                same window so the operator view stays consistent.
+              </p>
+            </div>
+            <span className="meta-chip">{windowLabel} window</span>
+          </div>
+          <div className="history-toolbar">
+            {ANALYTICS_WINDOW_OPTIONS.map((option) => (
+              <button
+                key={option.id}
+                type="button"
+                className={`history-filter ${analyticsWindow === option.id ? 'history-filter--active' : ''}`}
+                onClick={() => setAnalyticsWindow(option.id)}
+              >
+                {option.label}
+              </button>
+            ))}
+          </div>
+        </section>
+      ) : null}
+
+      {selectedSystem ? <SystemPerformancePanel systemState={windowedSystemState} storage={storage} analyticsWindow={analyticsWindow} /> : null}
+      {selectedSystem ? <FleetAnalyticsPanel systemState={windowedSystemState} analyticsWindow={analyticsWindow} /> : null}
+      {selectedSystem ? <SystemHistoryPanel systemState={windowedSystemState} analyticsWindow={analyticsWindow} /> : null}
 
       <section className="surface overview-panel">
         <div className="section-header">

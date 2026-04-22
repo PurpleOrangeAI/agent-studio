@@ -1,13 +1,14 @@
-import type { ControlPlaneStorageInfo, ControlPlaneSystemState } from '../../app/control-plane';
-import { getMetricDelta, summarizeAgents, summarizeSystem } from '../../app/control-plane';
+import type { AnalyticsWindow, ControlPlaneStorageInfo, ControlPlaneSystemState } from '../../app/control-plane';
+import { getAnalyticsWindowLabel, getMetricDelta, summarizeAgents, summarizeSystem } from '../../app/control-plane';
 import { formatCredits, formatDateTime, formatDelta, formatDuration, titleCaseStatus } from '../../app/format';
 
 interface SystemPerformancePanelProps {
   systemState: ControlPlaneSystemState | null;
   storage?: ControlPlaneStorageInfo | null;
+  analyticsWindow: AnalyticsWindow;
 }
 
-export function SystemPerformancePanel({ systemState, storage }: SystemPerformancePanelProps) {
+export function SystemPerformancePanel({ systemState, storage, analyticsWindow }: SystemPerformancePanelProps) {
   const summary = summarizeSystem(systemState);
   const topAgents = summarizeAgents(systemState).slice(0, 2);
   const latestEvaluation = summary?.latestEvaluation ?? null;
@@ -28,6 +29,7 @@ export function SystemPerformancePanel({ systemState, storage }: SystemPerforman
           <p className="muted">Use this before you enter the rooms. It gives the current operating posture, the release posture, and the hottest agents in one place.</p>
         </div>
         <div className="section-header__meta">
+          <span className="meta-chip">{getAnalyticsWindowLabel(analyticsWindow)} window</span>
           <span className={`status-pill status-pill--${summary.latestExecution?.status ?? summary.system.status ?? 'active'}`}>
             {titleCaseStatus(summary.latestExecution?.status ?? summary.system.status ?? 'active')}
           </span>

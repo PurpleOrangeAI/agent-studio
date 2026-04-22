@@ -1,12 +1,13 @@
-import type { ControlPlaneSystemState } from '../../app/control-plane';
-import { summarizeFleetAnalytics } from '../../app/control-plane';
-import { formatDateTime, titleCaseStatus } from '../../app/format';
+import type { AnalyticsWindow, ControlPlaneSystemState } from '../../app/control-plane';
+import { getAnalyticsWindowLabel, summarizeFleetAnalytics } from '../../app/control-plane';
+import { formatCredits, formatDateTime, formatDuration, titleCaseStatus } from '../../app/format';
 
 interface FleetAnalyticsPanelProps {
   systemState: ControlPlaneSystemState | null;
+  analyticsWindow: AnalyticsWindow;
 }
 
-export function FleetAnalyticsPanel({ systemState }: FleetAnalyticsPanelProps) {
+export function FleetAnalyticsPanel({ systemState, analyticsWindow }: FleetAnalyticsPanelProps) {
   const analytics = summarizeFleetAnalytics(systemState);
 
   if (!analytics) {
@@ -24,7 +25,9 @@ export function FleetAnalyticsPanel({ systemState }: FleetAnalyticsPanelProps) {
             release evidence into something an operator can scan fast.
           </p>
         </div>
-        <span className="meta-chip">{analytics.recentEventCount7d} events in 7d</span>
+        <span className="meta-chip">
+          {analytics.eventCount} events · {getAnalyticsWindowLabel(analyticsWindow)}
+        </span>
       </div>
       <div className="analytics-grid">
         <article className="metric-card metric-card--primary">
@@ -41,12 +44,12 @@ export function FleetAnalyticsPanel({ systemState }: FleetAnalyticsPanelProps) {
           </strong>
         </article>
         <article className="metric-card metric-card--accent">
-          <span>Active directives</span>
-          <strong>{analytics.activeDirectives}</strong>
+          <span>Average spend</span>
+          <strong>{formatCredits(analytics.avgCredits)}</strong>
         </article>
         <article className="metric-card metric-card--success">
-          <span>Recent activity</span>
-          <strong>{analytics.recentEventCount24h} in last 24h</strong>
+          <span>Average duration</span>
+          <strong>{formatDuration(analytics.avgDurationMs)}</strong>
         </article>
       </div>
       <div className="analytics-columns">
@@ -72,8 +75,15 @@ export function FleetAnalyticsPanel({ systemState }: FleetAnalyticsPanelProps) {
           </div>
         </section>
         <section className="mini-surface">
-          <p className="eyebrow">Recent failures and holds</p>
+          <p className="eyebrow">Window posture</p>
           <div className="stack-list">
+            <div className="stack-list__item stack-list__item--body">
+              <strong>{analytics.executionCount} tracked execution{analytics.executionCount === 1 ? '' : 's'}</strong>
+              <p>
+                {Math.round(analytics.successRate * 100)}% success · {analytics.activeDirectives} active directives ·
+                latest event {formatDateTime(analytics.latestEventAt ?? undefined)}
+              </p>
+            </div>
             {analytics.recentFailures.length ? (
               analytics.recentFailures.map((event) => (
                 <div key={event.eventId} className="stack-list__item stack-list__item--body">
@@ -85,8 +95,8 @@ export function FleetAnalyticsPanel({ systemState }: FleetAnalyticsPanelProps) {
               ))
             ) : (
               <div className="stack-list__item stack-list__item--body">
-                <strong>No recent failures</strong>
-                <p>The current history does not show failed executions, hold evaluations, or rollback releases.</p>
+                <strong>No failures or holds in this window</strong>
+                <p>The selected time scope does not show failed executions, hold evaluations, or rollback releases.</p>
               </div>
             )}
           </div>

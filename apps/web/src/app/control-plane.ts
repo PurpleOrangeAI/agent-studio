@@ -85,6 +85,9 @@ export interface SystemSummary {
   pressureAgentId: string | null;
 }
 
+export type AnalyticsWindow = '24h' | '7d' | '30d' | 'all';
+export type AgentRosterFocus = 'all' | 'attention' | 'failures' | 'directives';
+
 export interface SystemHistoryEvent {
   eventId: string;
   kind: 'execution' | 'directive' | 'evaluation' | 'release';
@@ -97,6 +100,7 @@ export interface SystemHistoryEvent {
 }
 
 export interface FleetAnalyticsSummary {
+  executionCount: number;
   executionStatusCounts: {
     running: number;
     succeeded: number;
@@ -105,8 +109,10 @@ export interface FleetAnalyticsSummary {
   totalSpans: number;
   failedSpans: number;
   activeDirectives: number;
-  recentEventCount24h: number;
-  recentEventCount7d: number;
+  eventCount: number;
+  successRate: number;
+  avgCredits: number;
+  avgDurationMs: number;
   latestEventAt: string | null;
   hottestAgents: AgentSummary[];
   recentFailures: SystemHistoryEvent[];
@@ -134,6 +140,19 @@ export interface ControlPlaneImportBundle {
   evaluations?: EvaluationRecord[];
   releases?: ReleaseDecision[];
 }
+
+export const ANALYTICS_WINDOW_OPTIONS: Array<{ id: AnalyticsWindow; label: string }> = [
+  { id: '24h', label: '24h' },
+  { id: '7d', label: '7d' },
+  { id: '30d', label: '30d' },
+  { id: 'all', label: 'All time' },
+];
+
+const ANALYTICS_WINDOW_MS: Record<Exclude<AnalyticsWindow, 'all'>, number> = {
+  '24h': 24 * 60 * 60 * 1000,
+  '7d': 7 * 24 * 60 * 60 * 1000,
+  '30d': 30 * 24 * 60 * 60 * 1000,
+};
 
 const DEFAULT_POLICY: PolicySnapshot = {
   mode: 'recommended',
@@ -787,12 +806,108 @@ function computeAverage(values: number[]) {
   return values.reduce((total, value) => total + value, 0) / values.length;
 }
 
-function isWithinWindow(timestamp: string | null | undefined, windowMs: number) {
+function getTimestampMs(timestamp: string | null | undefined) {
+  if (!timestamp) {
+    return null;
+  }
+
+  const parsed = new Date(timestamp).getTime();
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+function isWithinWindow(timestamp: string | null | undefined, windowMs: number, referenceMs: number) {
   if (!timestamp) {
     return false;
   }
 
-  return Date.now() - new Date(timestamp).getTime() <= windowMs;
+  const eventMs = getTimestampMs(timestamp);
+  if (eventMs == null) {
+    return false;
+  }
+
+  return referenceMs - eventMs <= windowMs;
+}
+
+function getSystemReferenceMs(systemState: ControlPlaneSystemState | null | undefined) {
+  if (!systemState) {
+    return Date.now();
+  }
+
+  const timestamps = [
+    ...systemState.executions.flatMap((execution) => [execution.finishedAt ?? null, execution.startedAt]),
+    ...Object.values(systemState.executionSpans)
+      .flat()
+      .flatMap((span) => [span.finishedAt ?? null, span.startedAt]),
+    ...Object.values(systemState.executionMetrics)
+      .flat()
+      .map((sample) => sample.ts),
+    ...systemState.interventions.flatMap((intervention) => [intervention.appliedAt ?? null, intervention.requestedAt]),
+    ...systemState.evaluations.map((evaluation) => evaluation.createdAt),
+    ...systemState.releases.flatMap((release) => [release.appliedAt ?? null, release.requestedAt]),
+  ]
+    .map((timestamp) => getTimestampMs(timestamp))
+    .filter((timestamp): timestamp is number => timestamp != null);
+
+  return timestamps.length ? Math.max(...timestamps) : Date.now();
+}
+
+function getAnalyticsWindowMs(window: AnalyticsWindow) {
+  return window === 'all' ? null : ANALYTICS_WINDOW_MS[window];
+}
+
+export function getAnalyticsWindowLabel(window: AnalyticsWindow) {
+  return ANALYTICS_WINDOW_OPTIONS.find((option) => option.id === window)?.label ?? 'All time';
+}
+
+export function filterSystemStateByWindow(
+  systemState: ControlPlaneSystemState | null | undefined,
+  window: AnalyticsWindow,
+): ControlPlaneSystemState | null {
+  if (!systemState) {
+    return null;
+  }
+
+  const windowMs = getAnalyticsWindowMs(window);
+  if (windowMs == null) {
+    return systemState;
+  }
+
+  const referenceMs = getSystemReferenceMs(systemState);
+  const executionIds = new Set(
+    systemState.executions
+      .filter((execution) => isWithinWindow(execution.finishedAt ?? execution.startedAt, windowMs, referenceMs))
+      .map((execution) => execution.executionId),
+  );
+
+  return {
+    ...systemState,
+    executions: systemState.executions.filter((execution) => executionIds.has(execution.executionId)),
+    executionSpans: Object.fromEntries(
+      Object.entries(systemState.executionSpans)
+        .filter(([executionId]) => executionIds.has(executionId))
+        .map(([executionId, spans]) => [
+          executionId,
+          spans.filter((span) => isWithinWindow(span.finishedAt ?? span.startedAt, windowMs, referenceMs)),
+        ]),
+    ),
+    executionMetrics: Object.fromEntries(
+      Object.entries(systemState.executionMetrics)
+        .filter(([executionId]) => executionIds.has(executionId))
+        .map(([executionId, metrics]) => [
+          executionId,
+          metrics.filter((sample) => isWithinWindow(sample.ts, windowMs, referenceMs)),
+        ]),
+    ),
+    interventions: systemState.interventions.filter((intervention) =>
+      isWithinWindow(intervention.appliedAt ?? intervention.requestedAt, windowMs, referenceMs),
+    ),
+    evaluations: systemState.evaluations.filter((evaluation) =>
+      isWithinWindow(evaluation.createdAt, windowMs, referenceMs),
+    ),
+    releases: systemState.releases.filter((release) =>
+      isWithinWindow(release.appliedAt ?? release.requestedAt, windowMs, referenceMs),
+    ),
+  };
 }
 
 export function summarizeAgent(systemState: ControlPlaneSystemState | null | undefined, agentId: string): AgentSummary | null {
@@ -848,6 +963,20 @@ export function summarizeAgents(systemState: ControlPlaneSystemState | null | un
     .map((agent) => summarizeAgent(systemState, agent.agentId))
     .filter((summary): summary is AgentSummary => summary != null)
     .sort((left, right) => right.pressureScore - left.pressureScore || compareByNewest(left.lastActiveAt ?? undefined, right.lastActiveAt ?? undefined));
+}
+
+export function filterAgentSummaries(agentSummaries: AgentSummary[], focus: AgentRosterFocus): AgentSummary[] {
+  switch (focus) {
+    case 'attention':
+      return agentSummaries.filter((summary) => summary.failedSpanCount > 0 || summary.activeInterventionCount > 0);
+    case 'failures':
+      return agentSummaries.filter((summary) => summary.failedSpanCount > 0);
+    case 'directives':
+      return agentSummaries.filter((summary) => summary.activeInterventionCount > 0);
+    case 'all':
+    default:
+      return agentSummaries;
+  }
 }
 
 export function summarizeSystem(systemState: ControlPlaneSystemState | null | undefined): SystemSummary | null {
@@ -968,24 +1097,31 @@ export function summarizeFleetAnalytics(systemState: ControlPlaneSystemState | n
   const spans = Object.values(systemState.executionSpans).flat();
   const history = buildSystemHistoryEvents(systemState);
   const hottestAgents = summarizeAgents(systemState).slice(0, 3);
+  const executionMetrics = Object.values(systemState.executionMetrics).flat();
+  const durationSamples = executionMetrics.filter((sample) => sample.metric === 'duration.ms' && sample.scopeType === 'execution');
+  const creditSamples = executionMetrics.filter((sample) => sample.metric === 'credits.actual' && sample.scopeType === 'execution');
   const recentFailures = history.filter((event) =>
     ['failed', 'hold', 'rollback'].includes(event.status),
   );
+  const succeededExecutions = systemState.executions.filter((execution) => execution.status === 'succeeded').length;
 
   return {
+    executionCount: systemState.executions.length,
     executionStatusCounts: {
       running: systemState.executions.filter((execution) => execution.status === 'running').length,
-      succeeded: systemState.executions.filter((execution) => execution.status === 'succeeded').length,
+      succeeded: succeededExecutions,
       failed: systemState.executions.filter((execution) => execution.status === 'failed').length,
     },
     totalSpans: spans.length,
     failedSpans: spans.filter((span) => span.status === 'failed').length,
     activeDirectives: systemState.interventions.filter((intervention) => intervention.status === 'applied').length,
-    recentEventCount24h: history.filter((event) => isWithinWindow(event.occurredAt, 24 * 60 * 60 * 1000)).length,
-    recentEventCount7d: history.filter((event) => isWithinWindow(event.occurredAt, 7 * 24 * 60 * 60 * 1000)).length,
+    eventCount: history.length,
+    successRate: systemState.executions.length ? succeededExecutions / systemState.executions.length : 1,
     latestEventAt: history[0]?.occurredAt ?? null,
     hottestAgents,
     recentFailures: recentFailures.slice(0, 4),
+    avgCredits: computeAverage(creditSamples.map((sample) => sample.value)),
+    avgDurationMs: computeAverage(durationSamples.map((sample) => sample.value)),
   };
 }
 
