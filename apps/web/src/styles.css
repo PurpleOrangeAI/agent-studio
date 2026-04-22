@@ -694,6 +694,37 @@ li {
   display: flex;
   gap: 12px;
   align-items: center;
+  flex-wrap: wrap;
+}
+
+.live-topology__mode-toggle {
+  display: inline-flex;
+  gap: 8px;
+  padding: 6px;
+  border-radius: 999px;
+  border: 1px solid rgba(167, 190, 255, 0.14);
+  background: rgba(255, 255, 255, 0.025);
+}
+
+.live-topology__mode-button {
+  border: 0;
+  border-radius: 999px;
+  padding: 10px 14px;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  transition: background 180ms ease, color 180ms ease, transform 180ms ease;
+}
+
+.live-topology__mode-button:hover {
+  color: var(--text);
+  transform: translateY(-1px);
+}
+
+.live-topology__mode-button--active {
+  background: rgba(125, 226, 209, 0.12);
+  color: var(--text);
+  box-shadow: inset 0 0 0 1px rgba(125, 226, 209, 0.18);
 }
 
 .live-topology__hint {
@@ -712,6 +743,23 @@ li {
     radial-gradient(circle at center, rgba(125, 226, 209, 0.11), transparent 18%),
     radial-gradient(circle at center, rgba(184, 162, 255, 0.1), transparent 38%),
     linear-gradient(180deg, rgba(8, 15, 28, 0.88), rgba(4, 9, 18, 0.98));
+}
+
+.live-topology__canvas--free {
+  box-shadow:
+    inset 0 0 0 1px rgba(125, 226, 209, 0.08),
+    0 22px 48px rgba(0, 0, 0, 0.24);
+}
+
+.live-topology__canvas--orbit {
+  box-shadow: inset 0 0 0 1px rgba(184, 162, 255, 0.06);
+}
+
+.live-topology__canvas--dragging {
+  background:
+    radial-gradient(circle at center, rgba(125, 226, 209, 0.16), transparent 16%),
+    radial-gradient(circle at center, rgba(184, 162, 255, 0.14), transparent 38%),
+    linear-gradient(180deg, rgba(8, 15, 28, 0.9), rgba(4, 9, 18, 1));
 }
 
 .live-topology__canvas::before {
@@ -802,6 +850,51 @@ li {
   stroke: rgba(240, 177, 92, 0.78);
 }
 
+.live-topology__link--dragging {
+  stroke: rgba(125, 226, 209, 0.92);
+}
+
+.live-topology__canvas--dragging .live-topology__link-line {
+  opacity: 0.32;
+}
+
+.live-topology__canvas--dragging .live-topology__link--dragging.live-topology__link-line {
+  stroke-width: 0.8;
+  opacity: 0.98;
+  stroke-dasharray: 5 6;
+  animation-duration: 3.4s;
+}
+
+.live-topology__canvas--dragging .live-topology__link--dragging.live-topology__link-glow {
+  stroke-width: 2.2;
+  opacity: 0.72;
+  filter: blur(10px);
+}
+
+.live-topology__packet {
+  fill: rgba(125, 226, 209, 0.8);
+  filter: drop-shadow(0 0 5px rgba(125, 226, 209, 0.42));
+  pointer-events: none;
+}
+
+.live-topology__packet--active {
+  fill: rgba(125, 226, 209, 0.86);
+}
+
+.live-topology__packet--failed {
+  fill: rgba(255, 142, 130, 0.86);
+  filter: drop-shadow(0 0 5px rgba(255, 142, 130, 0.4));
+}
+
+.live-topology__packet--bottleneck {
+  fill: rgba(240, 177, 92, 0.9);
+  filter: drop-shadow(0 0 6px rgba(240, 177, 92, 0.48));
+}
+
+.live-topology__packet--dragging {
+  filter: drop-shadow(0 0 8px rgba(125, 226, 209, 0.62));
+}
+
 .live-topology__core {
   position: absolute;
   left: 50%;
@@ -863,6 +956,10 @@ li {
     box-shadow 220ms ease,
     background 220ms ease,
     transform 220ms ease;
+}
+
+.live-topology__canvas--orbit .live-node {
+  cursor: default;
 }
 
 .live-node::after {

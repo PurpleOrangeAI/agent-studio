@@ -36,7 +36,10 @@ type DragState = {
   pointerId: number;
 };
 
+type LayoutMode = 'orbit' | 'free';
+
 const POSITION_STORAGE_PREFIX = 'agent-studio-topology-layout:';
+const MODE_STORAGE_PREFIX = 'agent-studio-topology-mode:';
 
 const POSITION_PRESETS: Record<number, Array<[number, number]>> = {
   1: [[50, 18]],
@@ -195,6 +198,31 @@ function storePositions(workflowId: string, positions: Record<string, NodePositi
   }
 }
 
+function getStoredLayoutMode(workflowId: string): LayoutMode | null {
+  if (typeof window === 'undefined') {
+    return null;
+  }
+
+  try {
+    const raw = window.localStorage.getItem(`${MODE_STORAGE_PREFIX}${workflowId}`);
+    return raw === 'free' || raw === 'orbit' ? raw : null;
+  } catch {
+    return null;
+  }
+}
+
+function storeLayoutMode(workflowId: string, mode: LayoutMode) {
+  if (typeof window === 'undefined') {
+    return;
+  }
+
+  try {
+    window.localStorage.setItem(`${MODE_STORAGE_PREFIX}${workflowId}`, mode);
+  } catch {
+    // Ignore storage failures in demo mode.
+  }
+}
+
 function clamp(value: number, min: number, max: number) {
   return Math.min(max, Math.max(min, value));
 }
@@ -215,13 +243,18 @@ export function LiveAgentTopologySection({ workflow, run, replay }: LiveAgentTop
   const dragStateRef = useRef<DragState | null>(null);
   const [draggingRole, setDraggingRole] = useState<string | null>(null);
   const [nodePositions, setNodePositions] = useState<Record<string, NodePosition>>({});
+  const [layoutMode, setLayoutMode] = useState<LayoutMode>('orbit');
+
+  useEffect(() => {
+    setLayoutMode(getStoredLayoutMode(workflow.workflowId) ?? 'orbit');
+  }, [workflow.workflowId]);
 
   useEffect(() => {
     const stored = getStoredPositions(workflow.workflowId);
     const nextPositions = Object.fromEntries(
       roleNodes.map((node) => [
         node.role,
-        stored?.[node.role]
+        layoutMode === 'free' && stored?.[node.role]
           ? {
               x: clamp(stored[node.role].x, 10, 90),
               y: clamp(stored[node.role].y, 12, 88),
@@ -234,18 +267,24 @@ export function LiveAgentTopologySection({ workflow, run, replay }: LiveAgentTop
     );
 
     setNodePositions(nextPositions);
-  }, [workflow.workflowId, roleSignature]);
+  }, [workflow.workflowId, roleSignature, layoutMode]);
 
   useEffect(() => {
     if (!Object.keys(nodePositions).length) {
       return;
     }
 
-    storePositions(workflow.workflowId, nodePositions);
-  }, [nodePositions, workflow.workflowId]);
+    if (layoutMode === 'free') {
+      storePositions(workflow.workflowId, nodePositions);
+    }
+  }, [layoutMode, nodePositions, workflow.workflowId]);
 
   useEffect(() => {
-    if (!draggingRole) {
+    storeLayoutMode(workflow.workflowId, layoutMode);
+  }, [layoutMode, workflow.workflowId]);
+
+  useEffect(() => {
+    if (!draggingRole || layoutMode !== 'free') {
       return;
     }
 
@@ -300,7 +339,7 @@ export function LiveAgentTopologySection({ workflow, run, replay }: LiveAgentTop
     };
   }, [draggingRole]);
 
-  function resetLayout() {
+  function snapToOrbit() {
     const nextPositions = Object.fromEntries(
       roleNodes.map((node) => [
         node.role,
@@ -311,7 +350,16 @@ export function LiveAgentTopologySection({ workflow, run, replay }: LiveAgentTop
       ]),
     );
 
+    dragStateRef.current = null;
+    setDraggingRole(null);
     setNodePositions(nextPositions);
+    setLayoutMode('orbit');
+  }
+
+  function switchToFreeArrange() {
+    dragStateRef.current = null;
+    setDraggingRole(null);
+    setLayoutMode('free');
   }
 
   return (
@@ -322,9 +370,29 @@ export function LiveAgentTopologySection({ workflow, run, replay }: LiveAgentTop
           <h3>Working agents and command flow</h3>
         </div>
         <div className="live-topology__toolbar">
-          <button type="button" className="ghost-button" onClick={resetLayout}>
-            Snap to orbit
-          </button>
+          <div className="live-topology__mode-toggle" role="tablist" aria-label="Topology layout mode">
+            <button
+              type="button"
+              className={`live-topology__mode-button ${layoutMode === 'orbit' ? 'live-topology__mode-button--active' : ''}`}
+              aria-pressed={layoutMode === 'orbit'}
+              onClick={snapToOrbit}
+            >
+              Orbit
+            </button>
+            <button
+              type="button"
+              className={`live-topology__mode-button ${layoutMode === 'free' ? 'live-topology__mode-button--active' : ''}`}
+              aria-pressed={layoutMode === 'free'}
+              onClick={switchToFreeArrange}
+            >
+              Free arrange
+            </button>
+          </div>
+          {layoutMode === 'free' ? (
+            <button type="button" className="ghost-button" onClick={snapToOrbit}>
+              Snap to orbit
+            </button>
+          ) : null}
           <span className={`status-pill status-pill--${failedCount > 0 ? 'failed' : run.status}`}>
             {failedCount > 0 ? 'Pressure visible' : titleCaseStatus(run.status)}
           </span>
@@ -338,23 +406,33 @@ export function LiveAgentTopologySection({ workflow, run, replay }: LiveAgentTop
         {draggingRole
           ? `Arranging ${roleNodes.find((node) => node.role === draggingRole)?.label ?? 'agent'}`
           : bottleneckLabel
-            ? `Current pressure point: ${bottleneckLabel}. Drag any agent card to rearrange the layout, or snap back to orbit at any time.`
-            : 'Drag any agent card to rearrange the operating layout. Your layout stays in the browser for this workflow.'}
+            ? layoutMode === 'free'
+              ? `Current pressure point: ${bottleneckLabel}. Drag any agent card to rearrange the layout, or snap back to orbit at any time.`
+              : `Current pressure point: ${bottleneckLabel}. Switch to Free arrange if you want to move the agents manually.`
+            : layoutMode === 'free'
+              ? 'Drag any agent card to rearrange the operating layout. Your layout stays in the browser for this workflow.'
+              : 'Orbit mode keeps the topology in its canonical layout. Switch to Free arrange to move the agents manually.'}
       </p>
 
       <div className="live-topology">
-        <div ref={canvasRef} className="live-topology__canvas">
+        <div
+          ref={canvasRef}
+          className={`live-topology__canvas ${layoutMode === 'free' ? 'live-topology__canvas--free' : 'live-topology__canvas--orbit'} ${draggingRole ? 'live-topology__canvas--dragging' : ''}`}
+        >
           <div className="live-topology__orbit live-topology__orbit--outer" />
           <div className="live-topology__orbit live-topology__orbit--inner" />
           <div className="live-topology__glow" />
           <svg className="live-topology__links" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
-            {roleNodes.map((node) => {
+            {roleNodes.map((node, index) => {
               const position = nodePositions[node.role] ?? { x: node.x, y: node.y };
               const isBottleneck = node.role === bottleneckRole;
+              const isDragged = draggingRole === node.role;
               const path = buildLinkPath(position.x, position.y);
               const toneClass =
                 node.status === 'failed'
                   ? 'live-topology__link--failed'
+                  : isDragged
+                    ? 'live-topology__link--dragging'
                   : isBottleneck
                     ? 'live-topology__link--bottleneck'
                     : node.status === 'active'
@@ -365,6 +443,33 @@ export function LiveAgentTopologySection({ workflow, run, replay }: LiveAgentTop
                 <g key={`link-${node.role}`}>
                   <path className={`live-topology__link live-topology__link-glow ${toneClass}`} d={path} />
                   <path className={`live-topology__link live-topology__link-line ${toneClass}`} d={path} />
+                  {node.status !== 'standby' || isBottleneck ? (
+                    <>
+                      <circle
+                        className={`live-topology__packet ${isBottleneck ? 'live-topology__packet--bottleneck' : node.status === 'failed' ? 'live-topology__packet--failed' : 'live-topology__packet--active'} ${isDragged ? 'live-topology__packet--dragging' : ''}`}
+                        r={isBottleneck ? 0.95 : 0.72}
+                      >
+                        <animateMotion
+                          path={path}
+                          dur={isDragged ? '1.6s' : isBottleneck ? '2.1s' : '3.2s'}
+                          begin={`${index * 0.35}s`}
+                          repeatCount="indefinite"
+                          rotate="auto"
+                        />
+                      </circle>
+                      {isBottleneck ? (
+                        <circle className="live-topology__packet live-topology__packet--bottleneck" r={0.62}>
+                          <animateMotion
+                            path={path}
+                            dur="2.65s"
+                            begin={`${index * 0.35 + 0.9}s`}
+                            repeatCount="indefinite"
+                            rotate="auto"
+                          />
+                        </circle>
+                      ) : null}
+                    </>
+                  ) : null}
                 </g>
               );
             })}
@@ -396,6 +501,10 @@ export function LiveAgentTopologySection({ workflow, run, replay }: LiveAgentTop
                   ['--float-duration' as string]: `${6.2 + (index % 3) * 0.8}s`,
                 }}
                 onPointerDown={(event) => {
+                  if (layoutMode !== 'free') {
+                    return;
+                  }
+
                   dragStateRef.current = {
                     role: node.role,
                     pointerId: event.pointerId,
