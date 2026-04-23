@@ -2,16 +2,9 @@ type ApiApp = {
   handle(request: Request): Promise<Response>;
 };
 
-let appPromise: Promise<ApiApp> | undefined;
-
 async function getApp(): Promise<ApiApp> {
-  if (!appPromise) {
-    appPromise = import('../apps/api/dist/server.js').then(({ createDefaultApiApp }) =>
-      createDefaultApiApp(),
-    );
-  }
-
-  return appPromise;
+  const { createDefaultApiApp } = await import('../apps/api/dist/server.js');
+  return createDefaultApiApp();
 }
 
 function buildForwardedUrl(request: Request): URL {
