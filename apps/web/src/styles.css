@@ -174,43 +174,34 @@ li {
   align-items: flex-start;
 }
 
-.brand-lockup__mark {
-  position: relative;
-  display: inline-flex;
-  width: 2.5rem;
-  height: 2.5rem;
-  border-radius: 18px;
-  background:
-    linear-gradient(135deg, rgba(184, 162, 255, 0.95), rgba(125, 226, 209, 0.85) 52%, rgba(240, 177, 92, 0.95));
-  box-shadow:
-    0 14px 30px rgba(0, 0, 0, 0.22),
-    inset 0 0 0 1px rgba(255, 255, 255, 0.18);
+.brand-lockup__logo {
+  width: 3.1rem;
+  height: 3.1rem;
+  object-fit: contain;
+  filter:
+    drop-shadow(0 14px 28px rgba(0, 0, 0, 0.22))
+    drop-shadow(0 0 18px rgba(184, 162, 255, 0.12));
+  transform-origin: center;
+  will-change: transform;
 }
 
-.brand-lockup__mark::before,
-.brand-lockup__mark::after {
-  content: "";
-  position: absolute;
-  border-radius: 50%;
-  opacity: 0.95;
+.brand-lockup__logo--spinning {
+  animation: brand-logo-spin 36s linear infinite;
 }
 
-.brand-lockup__mark::before {
-  inset: 0.42rem 1rem 0.42rem 0.45rem;
-  background: rgba(10, 18, 34, 0.94);
+.brand-lockup--panel .brand-lockup__logo {
+  width: 2.7rem;
+  height: 2.7rem;
 }
 
-.brand-lockup__mark::after {
-  inset: 0.42rem 0.45rem 0.42rem 1rem;
-  background: rgba(10, 18, 34, 0.94);
-}
+@keyframes brand-logo-spin {
+  from {
+    transform: rotate(0deg);
+  }
 
-.brand-lockup__mark-core {
-  position: absolute;
-  inset: 0.86rem;
-  border-radius: 50%;
-  background: linear-gradient(135deg, rgba(184, 162, 255, 0.98), rgba(240, 177, 92, 0.98));
-  box-shadow: 0 0 22px rgba(240, 177, 92, 0.34);
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 .brand-lockup__copy {
@@ -863,6 +854,14 @@ li {
   color: var(--muted);
 }
 
+.overview-workspace {
+  margin-top: 20px;
+  background:
+    radial-gradient(circle at 12% 18%, rgba(125, 226, 209, 0.08), transparent 24%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.035), rgba(255, 255, 255, 0.01)),
+    var(--surface);
+}
+
 .history-toolbar {
   display: flex;
   flex-wrap: wrap;
@@ -888,6 +887,12 @@ li {
   border-color: rgba(125, 226, 209, 0.28);
   background: rgba(125, 226, 209, 0.12);
   color: var(--text);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .brand-lockup__logo--spinning {
+    animation: none;
+  }
 }
 
 .history-timeline {

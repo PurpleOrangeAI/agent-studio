@@ -495,7 +495,8 @@ describe('App shell', () => {
     expect(screen.queryByLabelText(/^runtime$/i)).not.toBeInTheDocument();
     expect(screen.queryByLabelText(/^system$/i)).not.toBeInTheDocument();
     expect(screen.getByRole('heading', { level: 1, name: /agent studio/i })).toBeInTheDocument();
-    expect(screen.getByRole('heading', { level: 2, name: /registered system/i })).toBeInTheDocument();
+    expect(screen.queryByRole('heading', { level: 2, name: /registered system/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('heading', { level: 2, name: /cross-system pressure and release watch/i })).not.toBeInTheDocument();
     expect(screen.getByRole('heading', { level: 2, name: /why agent studio is needed/i })).toBeInTheDocument();
     expect(screen.getByRole('heading', { level: 2, name: /^live, replay, optimize$/i })).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: /connect, operate, and improve a real agent system/i })).toBeInTheDocument();
@@ -503,7 +504,7 @@ describe('App shell', () => {
     expect(screen.getByRole('tab', { name: /^live$/i })).toBeInTheDocument();
     expect(screen.getByRole('tab', { name: /^replay$/i })).toBeInTheDocument();
     expect(screen.getByRole('tab', { name: /^optimize$/i })).toBeInTheDocument();
-    expect(screen.getAllByRole('heading', { level: 3, name: /weekly operations brief/i }).length).toBeGreaterThan(0);
+    expect(screen.getByRole('heading', { level: 2, name: /weekly operations brief/i })).toBeInTheDocument();
     expect(screen.getAllByText(/guardrailed candidate/i).length).toBeGreaterThan(0);
     expect(screen.getByText(/promoted the tighter fan-out plan/i)).toBeInTheDocument();
     fireEvent.click(screen.getByRole('tab', { name: /^connect$/i }));
@@ -574,20 +575,25 @@ describe('App shell', () => {
     expect(screen.getByRole('heading', { level: 2, name: /why agent studio is needed/i })).toBeInTheDocument();
     expect(screen.getByLabelText(/filter systems/i)).toBeInTheDocument();
     expect(screen.getByRole('heading', { level: 2, name: /time-windowed system view/i })).toBeInTheDocument();
-    expect(screen.getByText(/fleet analytics/i)).toBeInTheDocument();
-    expect(
-      screen.getByRole('heading', { level: 2, name: /pressure, failures, and recent activity/i }),
-    ).toBeInTheDocument();
-    expect(screen.getByRole('heading', { level: 2, name: /what changed in this system/i })).toBeInTheDocument();
-    expect(screen.getByText(/window posture/i)).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /releases/i })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { level: 2, name: /work one layer at a time/i })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { level: 2, name: /searchable agent roster/i })).toBeInTheDocument();
     expect(screen.getByText(/history persistent/i)).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole('button', { name: /^24h$/i }));
     expect(screen.getAllByText(/24h window/i).length).toBeGreaterThan(0);
-    expect(screen.getByText(/1 tracked execution/i)).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole('button', { name: /^failures$/i }));
     expect(screen.getByText(/1 visible · 24h/i)).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: /^analytics$/i }));
+    expect(
+      screen.getByRole('heading', { level: 2, name: /pressure, failures, and recent activity/i }),
+    ).toBeInTheDocument();
+    expect(screen.getByText(/1 tracked execution/i)).toBeInTheDocument();
+    expect(screen.getByText(/window posture/i)).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: /^history$/i }));
+    expect(screen.getByRole('heading', { level: 2, name: /what changed in this system/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /releases/i })).toBeInTheDocument();
   });
 });

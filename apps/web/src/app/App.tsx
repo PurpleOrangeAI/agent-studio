@@ -596,9 +596,11 @@ export function App() {
           <div className="hero__copy">
             <div className="hero__brand-row">
               <div className="brand-lockup">
-                <span className="brand-lockup__mark" aria-hidden="true">
-                  <span className="brand-lockup__mark-core" />
-                </span>
+                <img
+                  src="/branding/purple-orange-ai-logo.png"
+                  alt="Purple Orange AI logo"
+                  className="brand-lockup__logo brand-lockup__logo--spinning"
+                />
                 <div className="brand-lockup__copy">
                   <span className="brand-lockup__name">Purple Orange AI</span>
                   <span className="brand-lockup__tag">Open control room for multi-agent systems</span>
