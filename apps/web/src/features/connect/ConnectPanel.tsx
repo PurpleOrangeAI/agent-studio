@@ -553,15 +553,15 @@ export function ConnectPanel({ selectedSystem, storage, onRefresh, onNavigate }:
           <strong>{readiness.title}</strong> {readiness.body}
         </p>
         <div className="guide-actions">
-          {nextTemplateId && nextTemplateAction ? (
+          {successMode == null && nextTemplateId && nextTemplateAction ? (
             <button type="button" className="control-strip__primary" onClick={() => applyTemplate(nextTemplateId)}>
               {nextTemplateAction.label}
             </button>
-          ) : (
+          ) : successMode == null ? (
             <button type="button" className="control-strip__primary" onClick={() => onNavigate(suggestedView)}>
               Open {suggestedView.charAt(0).toUpperCase() + suggestedView.slice(1)}
             </button>
-          )}
+          ) : null}
           <button type="button" className="ghost-button" onClick={() => onNavigate('overview')}>
             Open Overview
           </button>
