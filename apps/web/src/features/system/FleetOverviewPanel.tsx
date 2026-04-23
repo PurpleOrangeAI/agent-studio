@@ -10,13 +10,15 @@ interface FleetOverviewPanelProps {
 
 export function FleetOverviewPanel({ systems, analyticsWindow, onSelectSystem }: FleetOverviewPanelProps) {
   const fleet = summarizeFleet(systems);
+  const hottestSystem = fleet.hottestSystems[0] ?? null;
+  const watchedSystem = fleet.releaseWatchlist[0] ?? null;
 
   if (!fleet.systemCount) {
     return null;
   }
 
   return (
-    <section className="surface">
+    <section className="surface fleet-overview-panel">
       <div className="section-header">
         <div>
           <p className="eyebrow">Fleet overview</p>
@@ -29,25 +31,53 @@ export function FleetOverviewPanel({ systems, analyticsWindow, onSelectSystem }:
         <span className="meta-chip">{getAnalyticsWindowLabel(analyticsWindow)} window</span>
       </div>
 
-      <div className="analytics-grid">
-        <article className="metric-card metric-card--primary">
-          <span>Systems in view</span>
-          <strong>
-            {fleet.activeSystemCount} active of {fleet.systemCount}
-          </strong>
-        </article>
-        <article className="metric-card">
-          <span>Tracked agents</span>
-          <strong>{fleet.trackedAgentCount}</strong>
-        </article>
-        <article className="metric-card metric-card--accent">
-          <span>Execution volume</span>
-          <strong>{fleet.executionCount}</strong>
-        </article>
-        <article className="metric-card metric-card--success">
-          <span>Fleet success rate</span>
-          <strong>{Math.round(fleet.avgSuccessRate * 100)}%</strong>
-        </article>
+      <div className="fleet-overview-panel__hero">
+        <div className="analytics-grid analytics-grid--fleet">
+          <article className="metric-card metric-card--primary">
+            <span>Systems in view</span>
+            <strong>
+              {fleet.activeSystemCount} active of {fleet.systemCount}
+            </strong>
+          </article>
+          <article className="metric-card">
+            <span>Tracked agents</span>
+            <strong>{fleet.trackedAgentCount}</strong>
+          </article>
+          <article className="metric-card metric-card--accent">
+            <span>Execution volume</span>
+            <strong>{fleet.executionCount}</strong>
+          </article>
+          <article className="metric-card metric-card--success">
+            <span>Fleet success rate</span>
+            <strong>{Math.round(fleet.avgSuccessRate * 100)}%</strong>
+          </article>
+        </div>
+
+        <div className="fleet-overview-panel__spotlight">
+          <article className="signal-band__card signal-band__card--directive">
+            <p className="eyebrow">Pressure spotlight</p>
+            <strong>{hottestSystem?.system.name ?? 'No hot system yet'}</strong>
+            <p>
+              {hottestSystem
+                ? `${getAgentLabel(
+                    systems.find((systemState) => systemState.system.systemId === hottestSystem.system.systemId) ?? null,
+                    hottestSystem.pressureAgentId ?? undefined,
+                  ) ?? 'No hot agent'} · ${hottestSystem.activeInterventionCount} directives · ${hottestSystem.executionCount} executions`
+                : 'Import more systems and traces to expose the hottest path across the fleet.'}
+            </p>
+          </article>
+          <article className="signal-band__card signal-band__card--accent">
+            <p className="eyebrow">Release spotlight</p>
+            <strong>{watchedSystem?.system.name ?? 'No release watch item'}</strong>
+            <p>
+              {watchedSystem
+                ? `${titleCaseStatus(
+                    watchedSystem.latestRelease?.decision ?? watchedSystem.latestEvaluation?.verdict ?? 'watch',
+                  )} · ${watchedSystem.latestRelease?.summary ?? watchedSystem.latestEvaluation?.summary ?? 'Release review still open.'}`
+                : 'The current fleet slice does not show a hold or rollback pressure point.'}
+            </p>
+          </article>
+        </div>
       </div>
 
       <div className="analytics-columns">
@@ -109,7 +139,7 @@ export function FleetOverviewPanel({ systems, analyticsWindow, onSelectSystem }:
         </section>
       </div>
 
-      <div className="signal-band">
+      <div className="signal-band fleet-overview-panel__band">
         <article className="signal-band__card">
           <p className="eyebrow">Average spend</p>
           <strong>{formatCredits(fleet.avgCredits)}</strong>
@@ -124,11 +154,11 @@ export function FleetOverviewPanel({ systems, analyticsWindow, onSelectSystem }:
           <p className="eyebrow">Directive load</p>
           <strong>{fleet.activeDirectiveCount} active directives</strong>
           <p>
-            {fleet.releaseWatchlist[0]
-              ? `Latest watch item ${fleet.releaseWatchlist[0].system.name} · ${formatDateTime(
-                  fleet.releaseWatchlist[0].latestRelease?.appliedAt ??
-                    fleet.releaseWatchlist[0].latestRelease?.requestedAt ??
-                    fleet.releaseWatchlist[0].latestEvaluation?.createdAt,
+            {watchedSystem
+              ? `Latest watch item ${watchedSystem.system.name} · ${formatDateTime(
+                  watchedSystem.latestRelease?.appliedAt ??
+                    watchedSystem.latestRelease?.requestedAt ??
+                    watchedSystem.latestEvaluation?.createdAt,
                 )}`
               : 'No active release watch item in this window.'}
           </p>

@@ -594,6 +594,18 @@ export function App() {
       <div className="app-shell__content">
         <header className="hero surface">
           <div className="hero__copy">
+            <div className="hero__brand-row">
+              <div className="brand-lockup">
+                <span className="brand-lockup__mark" aria-hidden="true">
+                  <span className="brand-lockup__mark-core" />
+                </span>
+                <div className="brand-lockup__copy">
+                  <span className="brand-lockup__name">Purple Orange AI</span>
+                  <span className="brand-lockup__tag">Open control room for multi-agent systems</span>
+                </div>
+              </div>
+              <span className="hero__brand-pill">GitHub-ready public demo</span>
+            </div>
             <p className="eyebrow">Public demo</p>
             <h1>Agent Studio</h1>
             <p className="hero__lede">

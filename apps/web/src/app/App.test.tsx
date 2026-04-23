@@ -491,6 +491,7 @@ describe('App shell', () => {
 
     expect((await screen.findAllByText(/seeded demo runtime/i)).length).toBeGreaterThan(0);
     expect(screen.getAllByText(/weekly operations brief/i).length).toBeGreaterThan(0);
+    expect(screen.getAllByText(/purple orange ai/i).length).toBeGreaterThan(0);
     expect(screen.queryByLabelText(/^runtime$/i)).not.toBeInTheDocument();
     expect(screen.queryByLabelText(/^system$/i)).not.toBeInTheDocument();
     expect(screen.getByRole('heading', { level: 1, name: /agent studio/i })).toBeInTheDocument();
