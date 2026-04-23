@@ -10,6 +10,7 @@ Start here:
 - [Install](./install.md)
 - [Demo](./demo.md)
 - [Demo script](./demo-script.md)
+- [Recorded operator-loop clip](./assets/agent-studio-demo-operator-loop.webm)
 - [Architecture overview](./architecture-overview.md)
 - [Public release prep](./release-prep.md)
 - [LangGraph adapter](./adapters/langgraph.md)

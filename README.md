@@ -53,6 +53,7 @@ This repo currently gives you:
 ## Live demo
 
 - Public demo: https://agent-studio-sage.vercel.app
+- Short demo clip: [docs/assets/agent-studio-demo-operator-loop.webm](./docs/assets/agent-studio-demo-operator-loop.webm)
 
 ![Agent Studio public demo](./docs/assets/agent-studio-demo.png)
 

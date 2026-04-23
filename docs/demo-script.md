@@ -8,6 +8,10 @@ Use it for:
 - a live founder demo
 - a GitHub repo walkthrough
 
+Current recorded clip:
+
+- [agent-studio-demo-operator-loop.webm](./assets/agent-studio-demo-operator-loop.webm)
+
 ## Goal
 
 Make three ideas obvious fast:
