@@ -9,13 +9,15 @@ interface FleetAnalyticsPanelProps {
 
 export function FleetAnalyticsPanel({ systemState, analyticsWindow }: FleetAnalyticsPanelProps) {
   const analytics = summarizeFleetAnalytics(systemState);
+  const spotlightAgent = analytics?.hottestAgents[0] ?? null;
+  const spotlightFailure = analytics?.recentFailures[0] ?? null;
 
   if (!analytics) {
     return null;
   }
 
   return (
-    <section className="surface">
+    <section className="surface fleet-analytics-panel">
       <div className="section-header">
         <div>
           <p className="eyebrow">Fleet analytics</p>
@@ -29,28 +31,53 @@ export function FleetAnalyticsPanel({ systemState, analyticsWindow }: FleetAnaly
           {analytics.eventCount} events · {getAnalyticsWindowLabel(analyticsWindow)}
         </span>
       </div>
-      <div className="analytics-grid">
-        <article className="metric-card metric-card--primary">
-          <span>Execution mix</span>
-          <strong>
-            {analytics.executionStatusCounts.succeeded} ok · {analytics.executionStatusCounts.running} running ·{' '}
-            {analytics.executionStatusCounts.failed} failed
-          </strong>
-        </article>
-        <article className="metric-card metric-card--warning">
-          <span>Span health</span>
-          <strong>
-            {analytics.failedSpans} failed of {analytics.totalSpans}
-          </strong>
-        </article>
-        <article className="metric-card metric-card--accent">
-          <span>Average spend</span>
-          <strong>{formatCredits(analytics.avgCredits)}</strong>
-        </article>
-        <article className="metric-card metric-card--success">
-          <span>Average duration</span>
-          <strong>{formatDuration(analytics.avgDurationMs)}</strong>
-        </article>
+      <div className="analytics-scene">
+        <div className="analytics-grid analytics-grid--analytics-panel">
+          <article className="metric-card metric-card--primary">
+            <span>Execution mix</span>
+            <strong>
+              {analytics.executionStatusCounts.succeeded} ok · {analytics.executionStatusCounts.running} running ·{' '}
+              {analytics.executionStatusCounts.failed} failed
+            </strong>
+          </article>
+          <article className="metric-card metric-card--warning">
+            <span>Span health</span>
+            <strong>
+              {analytics.failedSpans} failed of {analytics.totalSpans}
+            </strong>
+          </article>
+          <article className="metric-card metric-card--accent">
+            <span>Average spend</span>
+            <strong>{formatCredits(analytics.avgCredits)}</strong>
+          </article>
+          <article className="metric-card metric-card--success">
+            <span>Average duration</span>
+            <strong>{formatDuration(analytics.avgDurationMs)}</strong>
+          </article>
+        </div>
+
+        <div className="analytics-scene__spotlights">
+          <article className="signal-band__card signal-band__card--directive">
+            <p className="eyebrow">Pressure spotlight</p>
+            <strong>{spotlightAgent?.agent.label ?? 'No hot agent yet'}</strong>
+            <p>
+              {spotlightAgent
+                ? `${spotlightAgent.failedSpanCount} failed spans · ${spotlightAgent.activeInterventionCount} directives · last active ${formatDateTime(
+                    spotlightAgent.lastActiveAt ?? undefined,
+                  )}`
+                : 'Import more spans and directives to build a real pressure leaderboard.'}
+            </p>
+          </article>
+          <article className="signal-band__card signal-band__card--accent">
+            <p className="eyebrow">Failure spotlight</p>
+            <strong>{spotlightFailure?.title ?? 'No failure or hold in this window'}</strong>
+            <p>
+              {spotlightFailure
+                ? `${titleCaseStatus(spotlightFailure.status)} · ${formatDateTime(spotlightFailure.occurredAt)} · ${spotlightFailure.summary}`
+                : 'The selected time scope does not show a failed execution, hold evaluation, or rollback release.'}
+            </p>
+          </article>
+        </div>
       </div>
       <div className="analytics-columns">
         <section className="mini-surface">

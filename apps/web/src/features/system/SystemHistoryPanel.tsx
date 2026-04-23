@@ -27,6 +27,18 @@ const STATUS_FILTERS: Array<{ id: HistoryStatusFilter; label: string }> = [
   { id: 'active', label: 'Active' },
 ];
 
+function getHistoryTone(status: string) {
+  if (['failed', 'hold', 'rollback'].includes(status)) {
+    return 'attention';
+  }
+
+  if (['succeeded', 'approved', 'promoted', 'released'].includes(status)) {
+    return 'healthy';
+  }
+
+  return 'active';
+}
+
 function matchesStatusFilter(event: SystemHistoryEvent, filter: HistoryStatusFilter) {
   if (filter === 'all') {
     return true;
@@ -47,6 +59,15 @@ export function SystemHistoryPanel({ systemState, analyticsWindow }: SystemHisto
   const [filter, setFilter] = useState<HistoryFilter>('all');
   const [statusFilter, setStatusFilter] = useState<HistoryStatusFilter>('all');
   const history = useMemo(() => buildSystemHistoryEvents(systemState), [systemState]);
+  const eventCounts = useMemo(
+    () => ({
+      execution: history.filter((event) => event.kind === 'execution').length,
+      directive: history.filter((event) => event.kind === 'directive').length,
+      evaluation: history.filter((event) => event.kind === 'evaluation').length,
+      release: history.filter((event) => event.kind === 'release').length,
+    }),
+    [history],
+  );
   const filteredHistory = useMemo(() => {
     return history.filter((event) => {
       const matchesKind = filter === 'all' ? true : event.kind === filter;
@@ -59,7 +80,7 @@ export function SystemHistoryPanel({ systemState, analyticsWindow }: SystemHisto
   }
 
   return (
-    <section className="surface">
+    <section className="surface history-panel">
       <div className="section-header">
         <div>
           <p className="eyebrow">Recent history</p>
@@ -72,6 +93,28 @@ export function SystemHistoryPanel({ systemState, analyticsWindow }: SystemHisto
         <span className="meta-chip">
           {filteredHistory.length} events · {getAnalyticsWindowLabel(analyticsWindow)}
         </span>
+      </div>
+      <div className="history-overview">
+        <article className="mini-surface history-overview__card">
+          <span className="eyebrow">Executions</span>
+          <strong>{eventCounts.execution}</strong>
+          <p>Run-level changes and posture updates.</p>
+        </article>
+        <article className="mini-surface history-overview__card">
+          <span className="eyebrow">Directives</span>
+          <strong>{eventCounts.directive}</strong>
+          <p>Manual interventions and live operator guidance.</p>
+        </article>
+        <article className="mini-surface history-overview__card">
+          <span className="eyebrow">Evaluations</span>
+          <strong>{eventCounts.evaluation}</strong>
+          <p>Comparisons that shaped release judgment.</p>
+        </article>
+        <article className="mini-surface history-overview__card">
+          <span className="eyebrow">Releases</span>
+          <strong>{eventCounts.release}</strong>
+          <p>Promotion, hold, and rollback decisions.</p>
+        </article>
       </div>
       <div className="history-toolbar">
         {FILTERS.map((item) => (
@@ -101,9 +144,10 @@ export function SystemHistoryPanel({ systemState, analyticsWindow }: SystemHisto
         {filteredHistory.length ? (
           filteredHistory.slice(0, 10).map((event) => {
             const agentLabel = event.relatedAgentId ? getAgentLabel(systemState, event.relatedAgentId) : null;
+            const tone = getHistoryTone(event.status);
 
             return (
-              <article key={event.eventId} className="history-item">
+              <article key={event.eventId} className={`history-item history-item--${tone}`}>
                 <div className="history-item__header">
                   <div>
                     <p className="eyebrow">{titleCaseStatus(event.kind)}</p>

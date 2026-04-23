@@ -12,7 +12,7 @@ export function AgentDetailPanel({ systemState, agentId }: AgentDetailPanelProps
 
   if (!summary) {
     return (
-      <section className="surface">
+      <section className="surface agent-detail-panel">
         <div className="section-header">
           <div>
             <p className="eyebrow">Agent detail</p>
@@ -25,7 +25,7 @@ export function AgentDetailPanel({ systemState, agentId }: AgentDetailPanelProps
   }
 
   return (
-    <section className="surface">
+    <section className="surface agent-detail-panel">
       <div className="section-header">
         <div>
           <p className="eyebrow">Agent detail</p>

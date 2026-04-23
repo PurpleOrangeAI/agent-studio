@@ -798,6 +798,15 @@ li {
   grid-template-columns: minmax(0, 1fr);
 }
 
+.agent-fleet-panel,
+.agent-detail-panel,
+.fleet-analytics-panel,
+.history-panel {
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.03), rgba(255, 255, 255, 0.01)),
+    var(--surface);
+}
+
 .analytics-grid,
 .analytics-columns,
 .history-toolbar,
@@ -815,6 +824,43 @@ li {
   display: grid;
   gap: 16px;
   grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.agent-fleet-panel__spotlight,
+.analytics-scene,
+.history-overview {
+  display: grid;
+  gap: 12px;
+  margin-top: 18px;
+}
+
+.agent-fleet-panel__spotlight,
+.analytics-scene {
+  grid-template-columns: minmax(0, 1.1fr) minmax(280px, 0.9fr);
+}
+
+.analytics-scene__spotlights {
+  display: grid;
+  gap: 12px;
+}
+
+.analytics-grid--analytics-panel {
+  margin-top: 0;
+}
+
+.history-overview {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.history-overview__card strong {
+  display: block;
+  margin-top: 8px;
+  font-size: 1.28rem;
+}
+
+.history-overview__card p {
+  margin: 10px 0 0;
+  color: var(--muted);
 }
 
 .history-toolbar {
@@ -850,12 +896,36 @@ li {
 }
 
 .history-item {
+  position: relative;
   border: 1px solid var(--border);
   border-radius: 22px;
   padding: 18px;
   background:
     linear-gradient(180deg, rgba(255, 255, 255, 0.04), rgba(255, 255, 255, 0.02)),
     rgba(7, 14, 28, 0.28);
+}
+
+.history-item::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 16px;
+  bottom: 16px;
+  width: 4px;
+  border-radius: 999px;
+  background: rgba(167, 190, 255, 0.22);
+}
+
+.history-item--attention::before {
+  background: rgba(255, 142, 130, 0.88);
+}
+
+.history-item--healthy::before {
+  background: rgba(141, 229, 167, 0.88);
+}
+
+.history-item--active::before {
+  background: rgba(125, 226, 209, 0.88);
 }
 
 .history-item__header {
@@ -968,12 +1038,12 @@ li {
 .agent-row {
   display: grid;
   gap: 14px;
-  grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.4fr);
-  align-items: center;
   border: 1px solid var(--border);
   border-radius: 20px;
   padding: 16px;
-  background: rgba(255, 255, 255, 0.025);
+  background:
+    linear-gradient(180deg, rgba(125, 226, 209, 0.08), rgba(255, 255, 255, 0.02)),
+    rgba(255, 255, 255, 0.025);
   color: var(--text);
   text-align: left;
   cursor: pointer;
@@ -988,8 +1058,17 @@ li {
 .agent-row--active {
   border-color: rgba(125, 226, 209, 0.34);
   background:
-    linear-gradient(180deg, rgba(125, 226, 209, 0.12), rgba(255, 255, 255, 0.025)),
+    linear-gradient(180deg, rgba(125, 226, 209, 0.16), rgba(184, 162, 255, 0.06)),
     rgba(255, 255, 255, 0.025);
+}
+
+.agent-row__header,
+.agent-row__footer {
+  display: flex;
+  gap: 12px;
+  justify-content: space-between;
+  align-items: start;
+  flex-wrap: wrap;
 }
 
 .agent-row__identity strong {
@@ -1002,6 +1081,12 @@ li {
   color: var(--muted);
 }
 
+.agent-row__chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
 .agent-row__metrics {
   display: flex;
   flex-wrap: wrap;
@@ -1009,6 +1094,36 @@ li {
   justify-content: flex-end;
   color: var(--muted);
   font-size: 0.92rem;
+}
+
+.agent-row__metrics--grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  justify-content: stretch;
+}
+
+.agent-row__metrics--grid div {
+  border-radius: 16px;
+  padding: 12px;
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.agent-row__metrics--grid span {
+  display: block;
+  font-size: 0.76rem;
+  color: var(--muted);
+}
+
+.agent-row__metrics--grid strong {
+  display: block;
+  margin-top: 8px;
+  font-size: 1rem;
+  color: var(--text);
+}
+
+.agent-row__footer {
+  color: var(--muted);
+  font-size: 0.88rem;
 }
 
 .room-tab,
@@ -2270,6 +2385,9 @@ li {
   .overview-grid,
   .ingest-grid,
   .analytics-grid,
+  .history-overview,
+  .agent-fleet-panel__spotlight,
+  .analytics-scene,
   .birdview-card-grid,
   .birdview-fit-grid,
   .analytics-columns,
@@ -2325,6 +2443,10 @@ li {
 
   .agent-row__metrics {
     justify-content: start;
+  }
+
+  .agent-row__metrics--grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .timeline-list__meta {
