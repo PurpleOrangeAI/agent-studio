@@ -542,6 +542,10 @@ li {
   background: rgba(141, 229, 167, 0.08);
 }
 
+.boundary-note--soft {
+  margin-top: 16px;
+}
+
 .room-nav__buttons {
   display: grid;
   gap: 12px;
@@ -1067,6 +1071,21 @@ li {
   margin-top: 18px;
 }
 
+.birdview-grid,
+.connection-mode-grid {
+  display: grid;
+  gap: 16px;
+  margin-top: 18px;
+}
+
+.birdview-grid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.connection-mode-grid {
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+}
+
 .guide-step {
   border-radius: 18px;
   padding: 14px;
@@ -1133,6 +1152,49 @@ li {
 .template-button span {
   color: var(--muted);
   font-size: 0.92rem;
+}
+
+.connection-mode-card {
+  border-radius: 18px;
+  padding: 16px;
+  border: 1px solid var(--border);
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.connection-mode-card--ready {
+  border-color: rgba(125, 226, 209, 0.22);
+  background:
+    linear-gradient(180deg, rgba(125, 226, 209, 0.08), rgba(255, 255, 255, 0.03)),
+    rgba(255, 255, 255, 0.025);
+}
+
+.connection-mode-card--partial {
+  border-color: rgba(240, 177, 92, 0.22);
+  background:
+    linear-gradient(180deg, rgba(240, 177, 92, 0.08), rgba(255, 255, 255, 0.03)),
+    rgba(255, 255, 255, 0.025);
+}
+
+.connection-mode-card__header {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: start;
+}
+
+.connection-mode-card p {
+  margin: 12px 0 0;
+  color: var(--muted);
+}
+
+.connection-mode-card__steps {
+  margin: 14px 0 0;
+  padding-left: 18px;
+  color: var(--text);
+}
+
+.connection-mode-card__steps li + li {
+  margin-top: 8px;
 }
 
 .ingest-grid--compact {
@@ -1839,6 +1901,7 @@ li {
   .hero,
   .system-layout,
   .guide-grid,
+  .birdview-grid,
   .connect-grid,
   .connect-split,
   .loop-grid,

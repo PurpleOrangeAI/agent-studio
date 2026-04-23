@@ -579,8 +579,8 @@ export function App() {
             <p className="eyebrow">Public demo</p>
             <h1>Agent Studio</h1>
             <p className="hero__lede">
-              A seeded control room for bring-your-own multi-agent systems. The shell should start from the system,
-              expose agent pressure fast, and make the next intervention or release call obvious.
+              Bring your own runtime, ingest agents and traces, then use one control room to operate the live system,
+              replay the break, and decide what should change before the next release.
             </p>
             <div className="hero__current-state">
               <div className="hero__state-copy">

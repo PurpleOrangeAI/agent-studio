@@ -14,6 +14,7 @@ import {
 import { formatCredits, formatDuration, titleCaseStatus } from '../../app/format';
 import { AgentDetailPanel } from './AgentDetailPanel';
 import { AgentFleetPanel } from './AgentFleetPanel';
+import { BirdviewPanel } from './BirdviewPanel';
 import { FleetOverviewPanel } from './FleetOverviewPanel';
 import { FleetAnalyticsPanel } from './FleetAnalyticsPanel';
 import { SystemCatalogPanel } from './SystemCatalogPanel';
@@ -67,6 +68,8 @@ export function SystemOverviewRoute({
   if (!selectedWorkflowState) {
     return (
       <>
+        <BirdviewPanel systemState={selectedSystem} storage={storage} />
+
         {sortedSystems.length ? (
           <>
             <FleetOverviewPanel systems={fleetSystems} analyticsWindow={analyticsWindow} onSelectSystem={onSelectSystem} />
@@ -216,6 +219,8 @@ export function SystemOverviewRoute({
 
   return (
     <>
+      <BirdviewPanel systemState={selectedSystem} storage={storage} />
+
       {sortedSystems.length ? (
         <>
           <FleetOverviewPanel systems={fleetSystems} analyticsWindow={analyticsWindow} onSelectSystem={onSelectSystem} />

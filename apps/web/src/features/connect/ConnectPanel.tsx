@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react';
 
 import type { ControlPlaneImportBundle, ControlPlaneStorageInfo, ControlPlaneSystemState } from '../../app/control-plane';
 import { ingestControlPlaneBundle, ingestControlPlaneItems, summarizeSystemReadiness } from '../../app/control-plane';
+import { ConnectionModesPanel } from './ConnectionModesPanel';
 
 interface ConnectPanelProps {
   selectedSystem: ControlPlaneSystemState | null;
@@ -291,6 +292,7 @@ export function ConnectPanel({ selectedSystem, storage, onRefresh }: ConnectPane
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const readiness = summarizeSystemReadiness(selectedSystem);
+  const systemName = selectedSystem?.system.name ?? registrationForm.systemName;
   const templateContext = useMemo(
     () => createTemplateContext(selectedSystem, registrationForm),
     [registrationForm, selectedSystem],
@@ -439,6 +441,10 @@ export function ConnectPanel({ selectedSystem, storage, onRefresh }: ConnectPane
           </div>
         </section>
 
+        <ConnectionModesPanel systemName={systemName} />
+      </div>
+
+      <div className="guide-grid">
         <section className="mini-surface">
           <p className="eyebrow">Import templates</p>
           <h3>Fill the JSON with a real starting point</h3>
@@ -452,6 +458,25 @@ export function ConnectPanel({ selectedSystem, storage, onRefresh }: ConnectPane
                 <span>{template.body}</span>
               </button>
             ))}
+          </div>
+        </section>
+
+        <section className="mini-surface">
+          <p className="eyebrow">What unlocks next</p>
+          <h3>Use import order on purpose</h3>
+          <div className="guide-stack">
+            <article className="guide-step guide-step--ready">
+              <strong>Agents + topology</strong>
+              <p>Live becomes an operator surface instead of a static placeholder.</p>
+            </article>
+            <article className="guide-step guide-step--ready">
+              <strong>Executions + spans</strong>
+              <p>Replay stops guessing and starts showing the real break tree.</p>
+            </article>
+            <article className="guide-step guide-step--ready">
+              <strong>Evaluations + releases</strong>
+              <p>Optimize becomes a release workbench instead of a hypothetical lab.</p>
+            </article>
           </div>
         </section>
       </div>

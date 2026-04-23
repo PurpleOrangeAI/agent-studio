@@ -49,6 +49,15 @@ Room requirements:
 - `Replay` becomes practical once executions and spans exist
 - `Optimize` becomes practical once evaluations or releases exist
 
+Choose the path that matches your runtime:
+
+- already using LangGraph:
+  - start with [LangGraph adapter](./adapters/langgraph.md)
+- using a custom or internal runtime:
+  - use the generic control-plane ingest path in `Connect`
+- planning for OpenHands:
+  - read the current boundary in [OpenHands adapter](./adapters/openhands.md)
+
 ## If you only want to verify the repo
 
 ```bash

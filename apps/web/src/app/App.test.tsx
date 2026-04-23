@@ -493,6 +493,7 @@ describe('App shell', () => {
     expect(screen.getByLabelText(/^system$/i)).toHaveDisplayValue(/weekly operations brief/i);
     expect(screen.getByRole('heading', { level: 1, name: /agent studio/i })).toBeInTheDocument();
     expect(screen.getByRole('heading', { level: 2, name: /registered systems/i })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { level: 2, name: /why agent studio is needed/i })).toBeInTheDocument();
     expect(screen.getByRole('heading', { level: 2, name: /^live, replay, optimize$/i })).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: /connect, operate, and improve a real agent system/i })).toBeInTheDocument();
     expect(screen.getByRole('tab', { name: /^live$/i })).toBeInTheDocument();
@@ -561,6 +562,7 @@ describe('App shell', () => {
 
     expect(await screen.findByLabelText(/^runtime$/i)).toHaveValue('runtime_imported');
     expect(screen.getByRole('heading', { level: 2, name: /cross-system pressure and release watch/i })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { level: 2, name: /why agent studio is needed/i })).toBeInTheDocument();
     expect(screen.getByLabelText(/filter systems/i)).toBeInTheDocument();
     expect(screen.getByRole('heading', { level: 2, name: /time-windowed system view/i })).toBeInTheDocument();
     expect(screen.getByText(/fleet analytics/i)).toBeInTheDocument();

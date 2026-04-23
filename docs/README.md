@@ -2,6 +2,8 @@
 
 Start here:
 
+- [Birdview audit](./birdview-audit-2026-04-22.md)
+- [Top trending plan](./top-trending-plan-2026-04-22.md)
 - [Product reset](./product-reset-2026-04-22.md)
 - [Architecture reset](./architecture-reset-2026-04-22.md)
 - [Quickstart](./quickstart.md)
