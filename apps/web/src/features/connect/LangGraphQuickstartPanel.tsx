@@ -1,6 +1,7 @@
 import { useState } from 'react';
 
 import type { SystemReadinessSummary } from '../../app/control-plane';
+import type { ViewId } from '../../app/routes';
 
 const ENV_VARS = [
   'LANGGRAPH_API_URL=https://your-langgraph.example',
@@ -19,6 +20,8 @@ const LANGGRAPH_DOC_URL = 'https://github.com/PurpleOrangeAI/agent-studio/blob/m
 interface LangGraphQuickstartPanelProps {
   systemName: string;
   readiness: SystemReadinessSummary;
+  onLoadTemplate: (templateId: 'roster' | 'trace' | 'release') => void;
+  onNavigate: (view: Exclude<ViewId, 'connect'>) => void;
 }
 
 function getChecklist(readiness: SystemReadinessSummary, systemName: string) {
@@ -72,7 +75,7 @@ async function copyText(text: string) {
   throw new Error('Clipboard API unavailable.');
 }
 
-export function LangGraphQuickstartPanel({ systemName, readiness }: LangGraphQuickstartPanelProps) {
+export function LangGraphQuickstartPanel({ systemName, readiness, onLoadTemplate, onNavigate }: LangGraphQuickstartPanelProps) {
   const [copiedBlock, setCopiedBlock] = useState<'env' | 'command' | null>(null);
   const [copyError, setCopyError] = useState<string | null>(null);
   const checklist = getChecklist(readiness, systemName);
@@ -153,6 +156,31 @@ export function LangGraphQuickstartPanel({ systemName, readiness }: LangGraphQui
         <div className="inline-callout inline-callout--warning">
           <span className="eyebrow">Clipboard error</span>
           <p>{copyError}</p>
+        </div>
+      ) : copiedBlock ? (
+        <div className="inline-callout inline-callout--success">
+          <span className="eyebrow">Copied</span>
+          <p>
+            {copiedBlock === 'env'
+              ? 'Paste the environment block into your shell, then copy the import command.'
+              : 'Run the import command in a shell, then come back to Agent Studio and confirm the system fills in.'}
+          </p>
+          <div className="guide-actions">
+            {copiedBlock === 'env' ? (
+              <button type="button" className="control-strip__primary" onClick={() => void handleCopy('command')}>
+                Copy import command
+              </button>
+            ) : (
+              <>
+                <button type="button" className="control-strip__primary" onClick={() => onNavigate('overview')}>
+                  Open Overview
+                </button>
+                <button type="button" className="ghost-button" onClick={() => onLoadTemplate('trace')}>
+                  Load execution trace template
+                </button>
+              </>
+            )}
+          </div>
         </div>
       ) : null}
 

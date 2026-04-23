@@ -1,14 +1,16 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 
 import type { ControlPlaneImportBundle, ControlPlaneStorageInfo, ControlPlaneSystemState } from '../../app/control-plane';
 import { ingestControlPlaneBundle, ingestControlPlaneItems, summarizeSystemReadiness } from '../../app/control-plane';
+import type { ViewId } from '../../app/routes';
 import { ConnectionModesPanel } from './ConnectionModesPanel';
 import { LangGraphQuickstartPanel } from './LangGraphQuickstartPanel';
 
 interface ConnectPanelProps {
   selectedSystem: ControlPlaneSystemState | null;
   storage: ControlPlaneStorageInfo | null;
-  onRefresh: (nextSystemId?: string) => Promise<void> | void;
+  onRefresh: (nextSystemId?: string, options?: { stayOnConnect?: boolean }) => Promise<void> | void;
+  onNavigate: (view: Exclude<ViewId, 'connect'>) => void;
 }
 
 interface RegistrationFormState {
@@ -19,6 +21,9 @@ interface RegistrationFormState {
   systemDescription: string;
   workspaceId: string;
 }
+
+type TemplateId = 'roster' | 'trace' | 'release';
+type SuccessMode = 'register' | 'import' | 'template' | null;
 
 const INITIAL_REGISTRATION_FORM: RegistrationFormState = {
   runtimeLabel: 'Imported runtime',
@@ -286,12 +291,67 @@ function buildReleaseEvidenceTemplate(selectedSystem: ControlPlaneSystemState | 
   });
 }
 
-export function ConnectPanel({ selectedSystem, storage, onRefresh }: ConnectPanelProps) {
+function getNextTemplateId(readiness: ReturnType<typeof summarizeSystemReadiness>): TemplateId | null {
+  if (readiness.agentCount === 0 || !readiness.hasTopology) {
+    return 'roster';
+  }
+
+  if (readiness.executionCount === 0 || readiness.spanCount === 0) {
+    return 'trace';
+  }
+
+  if (readiness.evaluationCount === 0 && readiness.releaseCount === 0) {
+    return 'release';
+  }
+
+  return null;
+}
+
+function getBestReadyView(readiness: ReturnType<typeof summarizeSystemReadiness>): Exclude<ViewId, 'connect'> {
+  if (readiness.evaluationCount > 0 || readiness.releaseCount > 0) {
+    return 'optimize';
+  }
+
+  if (readiness.executionCount > 0 && readiness.spanCount > 0) {
+    return 'replay';
+  }
+
+  if (readiness.agentCount > 0 && readiness.hasTopology) {
+    return 'live';
+  }
+
+  return 'overview';
+}
+
+function getTemplateCopy(templateId: TemplateId) {
+  if (templateId === 'roster') {
+    return {
+      label: 'Load agent roster template',
+      status: 'Roster template loaded. Import it to light up Live.',
+    };
+  }
+
+  if (templateId === 'trace') {
+    return {
+      label: 'Load execution trace template',
+      status: 'Trace template loaded. Import it to light up Replay.',
+    };
+  }
+
+  return {
+    label: 'Load release evidence template',
+    status: 'Release template loaded. Import it to light up Optimize.',
+  };
+}
+
+export function ConnectPanel({ selectedSystem, storage, onRefresh, onNavigate }: ConnectPanelProps) {
   const [registrationForm, setRegistrationForm] = useState(INITIAL_REGISTRATION_FORM);
   const [bundleText, setBundleText] = useState<string>('{\n  "agents": [],\n  "topologies": [],\n  "executions": [],\n  "spans": [],\n  "metrics": []\n}');
   const [status, setStatus] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [successMode, setSuccessMode] = useState<SuccessMode>(null);
+  const bundleTextareaRef = useRef<HTMLTextAreaElement | null>(null);
   const readiness = summarizeSystemReadiness(selectedSystem);
   const systemName = selectedSystem?.system.name ?? registrationForm.systemName;
   const templateContext = useMemo(
@@ -323,6 +383,7 @@ export function ConnectPanel({ selectedSystem, storage, onRefresh }: ConnectPane
     setSubmitting(true);
     setStatus(null);
     setError(null);
+    setSuccessMode(null);
 
     try {
       const runtimeId = createId('runtime', registrationForm.runtimeLabel);
@@ -349,7 +410,8 @@ export function ConnectPanel({ selectedSystem, storage, onRefresh }: ConnectPane
         updatedAt: new Date().toISOString(),
       });
 
-      await onRefresh(systemId);
+      await onRefresh(systemId, { stayOnConnect: true });
+      setSuccessMode('register');
       setStatus(`Registered ${registrationForm.systemName} on ${registrationForm.runtimeLabel}. Add agents and topology next.`);
     } catch (submissionError) {
       setError(submissionError instanceof Error ? submissionError.message : 'Failed to register runtime and system.');
@@ -362,12 +424,14 @@ export function ConnectPanel({ selectedSystem, storage, onRefresh }: ConnectPane
     setSubmitting(true);
     setStatus(null);
     setError(null);
+    setSuccessMode(null);
 
     try {
       const parsed = JSON.parse(bundleText) as ControlPlaneImportBundle;
       await ingestControlPlaneBundle(parsed);
       const nextSystemId = parsed.systems?.[0]?.systemId ?? parsed.agents?.[0]?.systemId ?? selectedSystem?.system.systemId;
-      await onRefresh(nextSystemId);
+      await onRefresh(nextSystemId, { stayOnConnect: true });
+      setSuccessMode('import');
       setStatus('Imported the control-plane bundle successfully.');
     } catch (submissionError) {
       setError(submissionError instanceof Error ? submissionError.message : 'Failed to import the control-plane bundle.');
@@ -376,15 +440,20 @@ export function ConnectPanel({ selectedSystem, storage, onRefresh }: ConnectPane
     }
   }
 
-  function applyTemplate(templateId: (typeof templates)[number]['id']) {
+  function applyTemplate(templateId: TemplateId) {
     const template = templates.find((item) => item.id === templateId);
     if (!template) {
       return;
     }
 
     setBundleText(template.build());
+    setSuccessMode('template');
     setStatus(`Loaded the ${template.label.toLowerCase()} template for ${templateContext.systemId}.`);
     setError(null);
+    window.requestAnimationFrame(() => {
+      bundleTextareaRef.current?.focus();
+      bundleTextareaRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    });
   }
 
   function updateRegistrationField<Key extends keyof RegistrationFormState>(key: Key, value: RegistrationFormState[Key]) {
@@ -393,6 +462,63 @@ export function ConnectPanel({ selectedSystem, storage, onRefresh }: ConnectPane
       [key]: value,
     }));
   }
+
+  const nextTemplateId = getNextTemplateId(readiness);
+  const nextTemplateAction = nextTemplateId ? getTemplateCopy(nextTemplateId) : null;
+  const suggestedView = getBestReadyView(readiness);
+
+  function renderSuccessActions() {
+    const actions: Array<{ id: string; label: string; onClick: () => void; primary?: boolean }> = [];
+
+    if ((successMode === 'register' || successMode === 'import') && nextTemplateId && nextTemplateAction) {
+      actions.push({
+        id: `template-${nextTemplateId}`,
+        label: nextTemplateAction.label,
+        onClick: () => applyTemplate(nextTemplateId),
+        primary: true,
+      });
+    }
+
+    if (successMode === 'template') {
+      actions.push({
+        id: 'import-bundle',
+        label: 'Import loaded bundle',
+        onClick: () => void handleImportBundle(),
+        primary: true,
+      });
+    }
+
+    if (successMode === 'import') {
+      actions.push({
+        id: `open-${suggestedView}`,
+        label: `Open ${suggestedView.charAt(0).toUpperCase() + suggestedView.slice(1)}`,
+        onClick: () => onNavigate(suggestedView),
+        primary: actions.length === 0,
+      });
+    }
+
+    if (successMode === 'register') {
+      actions.push({
+        id: 'open-overview',
+        label: 'Open Overview',
+        onClick: () => onNavigate('overview'),
+        primary: actions.length === 0,
+      });
+    }
+
+    if (successMode === 'template' && nextTemplateId === null) {
+      actions.push({
+        id: `open-${suggestedView}`,
+        label: `Open ${suggestedView.charAt(0).toUpperCase() + suggestedView.slice(1)}`,
+        onClick: () => onNavigate(suggestedView),
+        primary: actions.length === 0,
+      });
+    }
+
+    return actions.slice(0, 2);
+  }
+
+  const successActions = renderSuccessActions();
 
   return (
     <section className="surface">
@@ -446,7 +572,12 @@ export function ConnectPanel({ selectedSystem, storage, onRefresh }: ConnectPane
       </div>
 
       <div className="guide-grid">
-        <LangGraphQuickstartPanel systemName={systemName} readiness={readiness} />
+        <LangGraphQuickstartPanel
+          systemName={systemName}
+          readiness={readiness}
+          onLoadTemplate={applyTemplate}
+          onNavigate={onNavigate}
+        />
 
         <section className="mini-surface">
           <p className="eyebrow">Import templates</p>
@@ -529,7 +660,7 @@ export function ConnectPanel({ selectedSystem, storage, onRefresh }: ConnectPane
           </p>
           <label className="text-field">
             <span>Import JSON</span>
-            <textarea rows={16} value={bundleText} onChange={(event) => setBundleText(event.target.value)} />
+            <textarea ref={bundleTextareaRef} rows={16} value={bundleText} onChange={(event) => setBundleText(event.target.value)} />
           </label>
           <button type="button" className="control-strip__primary" onClick={handleImportBundle} disabled={submitting}>
             {submitting ? 'Importing…' : 'Import control-plane bundle'}
@@ -591,6 +722,21 @@ export function ConnectPanel({ selectedSystem, storage, onRefresh }: ConnectPane
         <div className="inline-callout inline-callout--success">
           <span className="eyebrow">Status</span>
           <p>{status}</p>
+          {successActions.length ? (
+            <div className="guide-actions">
+              {successActions.map((action) => (
+                <button
+                  key={action.id}
+                  type="button"
+                  className={action.primary ? 'control-strip__primary' : 'ghost-button'}
+                  onClick={action.onClick}
+                  disabled={submitting}
+                >
+                  {action.label}
+                </button>
+              ))}
+            </div>
+          ) : null}
         </div>
       ) : null}
       {error ? (

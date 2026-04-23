@@ -416,9 +416,29 @@ export function App() {
     navigateTo(selectedView === 'connect' ? 'overview' : selectedView, nextSystemId);
   }
 
-  async function handleRefreshControlPlane(nextSystemId?: string) {
+  async function handleRefreshControlPlane(nextSystemId?: string, options?: { stayOnConnect?: boolean }) {
     const nextState = await loadControlPlaneState();
     setControlPlaneState(nextState);
+
+    const refreshedSystem =
+      nextState.systems.find((systemState) => systemState.system.systemId === (nextSystemId ?? selectedControlPlaneSystem?.system.systemId ?? systemId)) ??
+      sortSystemsByActivity(nextState.systems)[0] ??
+      null;
+
+    if (refreshedSystem) {
+      setSystemId(refreshedSystem.system.systemId);
+      setRuntimeId(refreshedSystem.system.primaryRuntimeId ?? refreshedSystem.system.runtimeIds[0] ?? runtimeId);
+      setSelectedAgentId(refreshedSystem.agents[0]?.agentId ?? '');
+      const nextWorkflowId = getWorkflowIdForSystem(refreshedSystem);
+      if (nextWorkflowId) {
+        setWorkflowId(nextWorkflowId);
+      }
+    }
+
+    if (options?.stayOnConnect && selectedView === 'connect') {
+      navigateTo('connect', null, true);
+      return;
+    }
 
     if (nextSystemId) {
       navigateTo(selectedView === 'connect' ? 'overview' : selectedView, nextSystemId, true);
@@ -428,10 +448,6 @@ export function App() {
     if (!nextState.systems.length) {
       return;
     }
-
-    const refreshedSystem =
-      nextState.systems.find((systemState) => systemState.system.systemId === (selectedControlPlaneSystem?.system.systemId ?? systemId)) ??
-      sortSystemsByActivity(nextState.systems)[0];
 
     if (refreshedSystem) {
       navigateTo(selectedView === 'connect' ? 'overview' : selectedView, refreshedSystem.system.systemId, true);
@@ -756,6 +772,7 @@ export function App() {
             selectedSystem={selectedControlPlaneSystem}
             storage={controlPlaneState?.storage ?? null}
             onRefresh={handleRefreshControlPlane}
+            onNavigate={(view) => navigateTo(view)}
           />
         ) : null}
 
