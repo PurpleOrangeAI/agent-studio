@@ -48,7 +48,7 @@ function slug(value: string) {
 }
 
 function buildSystemId(workflowId: string) {
-  return `system_${slug(workflowId)}`;
+  return `system_${workflowId}`;
 }
 
 function buildAgentId(systemId: string, role: string) {
@@ -60,7 +60,10 @@ function buildNodeId(agentId: string) {
 }
 
 function buildExecutionId(systemId: string, runId: string) {
-  return `execution_${slug(systemId)}_${slug(runId)}`;
+  const systemToken = systemId.replace(/^system_/, '');
+  const runToken = runId.replace(/^run_/, '');
+
+  return `execution_${systemToken}_${runToken}`;
 }
 
 function buildRuntimeRegistration(seed: DemoStateResponse): RuntimeRegistration {

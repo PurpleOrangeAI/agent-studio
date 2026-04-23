@@ -113,13 +113,21 @@ export class ApiStore {
 
     if (options.snapshot) {
       this.hydrateSnapshot(options.snapshot);
+      this.overlaySeed(seed);
       return;
     }
 
-    this.hydrateSeed(seed);
+    this.overlaySeed(seed);
   }
 
-  private hydrateSeed(seed: ReturnType<typeof createSeededDemoState>) {
+  private setTopologySnapshot(snapshotEntry: TopologySnapshot) {
+    const current = this.topologySnapshots.get(snapshotEntry.systemId) ?? [];
+    const next = current.filter((item) => item.snapshotId !== snapshotEntry.snapshotId);
+    next.push(cloneRecord(snapshotEntry));
+    this.topologySnapshots.set(snapshotEntry.systemId, next);
+  }
+
+  private overlaySeed(seed: ReturnType<typeof createSeededDemoState>) {
     seed.workflows.forEach((workflow) => this.workflows.set(workflow.workflowId, cloneWorkflow(workflow)));
 
     Object.values(seed.workflowStates).forEach((state) => {
@@ -141,7 +149,7 @@ export class ApiStore {
     controlPlaneSeed.runtimes.forEach((runtime) => this.runtimes.set(runtime.runtimeId, cloneRecord(runtime)));
     controlPlaneSeed.systems.forEach((system) => this.systems.set(system.systemId, cloneRecord(system)));
     controlPlaneSeed.agents.forEach((agent) => this.agents.set(agent.agentId, cloneRecord(agent)));
-    controlPlaneSeed.topologySnapshots.forEach((snapshot) => this.upsertTopologySnapshot(snapshot));
+    controlPlaneSeed.topologySnapshots.forEach((snapshot) => this.setTopologySnapshot(snapshot));
     controlPlaneSeed.executions.forEach((execution) => this.executions.set(execution.executionId, cloneRecord(execution)));
     controlPlaneSeed.spans.forEach((span) => this.spans.set(span.spanId, cloneRecord(span)));
     controlPlaneSeed.artifacts.forEach((artifact) => this.artifacts.set(artifact.artifactId, cloneRecord(artifact)));
@@ -167,11 +175,7 @@ export class ApiStore {
     snapshot.runtimes.forEach((runtime) => this.runtimes.set(runtime.runtimeId, cloneRecord(runtime)));
     snapshot.systems.forEach((system) => this.systems.set(system.systemId, cloneRecord(system)));
     snapshot.agents.forEach((agent) => this.agents.set(agent.agentId, cloneRecord(agent)));
-    snapshot.topologySnapshots.forEach((snapshotEntry) => {
-      const current = this.topologySnapshots.get(snapshotEntry.systemId) ?? [];
-      current.push(cloneRecord(snapshotEntry));
-      this.topologySnapshots.set(snapshotEntry.systemId, current);
-    });
+    snapshot.topologySnapshots.forEach((snapshotEntry) => this.setTopologySnapshot(snapshotEntry));
     snapshot.executions.forEach((execution) => this.executions.set(execution.executionId, cloneRecord(execution)));
     snapshot.spans.forEach((span) => this.spans.set(span.spanId, cloneRecord(span)));
     snapshot.artifacts.forEach((artifact) => this.artifacts.set(artifact.artifactId, cloneRecord(artifact)));
