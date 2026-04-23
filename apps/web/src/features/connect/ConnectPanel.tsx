@@ -3,6 +3,7 @@ import { useMemo, useState } from 'react';
 import type { ControlPlaneImportBundle, ControlPlaneStorageInfo, ControlPlaneSystemState } from '../../app/control-plane';
 import { ingestControlPlaneBundle, ingestControlPlaneItems, summarizeSystemReadiness } from '../../app/control-plane';
 import { ConnectionModesPanel } from './ConnectionModesPanel';
+import { LangGraphQuickstartPanel } from './LangGraphQuickstartPanel';
 
 interface ConnectPanelProps {
   selectedSystem: ControlPlaneSystemState | null;
@@ -445,6 +446,8 @@ export function ConnectPanel({ selectedSystem, storage, onRefresh }: ConnectPane
       </div>
 
       <div className="guide-grid">
+        <LangGraphQuickstartPanel />
+
         <section className="mini-surface">
           <p className="eyebrow">Import templates</p>
           <h3>Fill the JSON with a real starting point</h3>

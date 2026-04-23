@@ -9,6 +9,8 @@ Start here:
 - [Quickstart](./quickstart.md)
 - [Install](./install.md)
 - [Demo](./demo.md)
+- [Demo script](./demo-script.md)
+- [Architecture overview](./architecture-overview.md)
 - [Public release prep](./release-prep.md)
 - [LangGraph adapter](./adapters/langgraph.md)
 - [OpenHands adapter](./adapters/openhands.md)

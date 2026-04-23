@@ -1,0 +1,122 @@
+<svg width="1600" height="980" viewBox="0 0 1600 980" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="bg" x1="180" y1="40" x2="1420" y2="940" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#112449"/>
+      <stop offset="0.55" stop-color="#091427"/>
+      <stop offset="1" stop-color="#050B15"/>
+    </linearGradient>
+    <linearGradient id="panel" x1="0" y1="0" x2="1" y2="1">
+      <stop stop-color="#11294E" stop-opacity="0.95"/>
+      <stop offset="1" stop-color="#0B1730" stop-opacity="0.88"/>
+    </linearGradient>
+    <linearGradient id="stroke" x1="0" y1="0" x2="1" y2="1">
+      <stop stop-color="#7DE2D1" stop-opacity="0.55"/>
+      <stop offset="1" stop-color="#B8A2FF" stop-opacity="0.25"/>
+    </linearGradient>
+    <linearGradient id="signal" x1="0" y1="0" x2="1" y2="0">
+      <stop stop-color="#7DE2D1"/>
+      <stop offset="0.5" stop-color="#B8A2FF"/>
+      <stop offset="1" stop-color="#F0B15C"/>
+    </linearGradient>
+    <filter id="glow" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur stdDeviation="18" result="blur"/>
+      <feMerge>
+        <feMergeNode in="blur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+    <style>
+      .title { font: 700 44px 'IBM Plex Sans', 'Avenir Next', sans-serif; fill: #EEF4FF; }
+      .eyebrow { font: 700 17px 'IBM Plex Sans', 'Avenir Next', sans-serif; letter-spacing: 0.24em; text-transform: uppercase; fill: #F0B15C; }
+      .section { font: 700 24px 'IBM Plex Sans', 'Avenir Next', sans-serif; fill: #EEF4FF; }
+      .body { font: 500 18px 'IBM Plex Sans', 'Avenir Next', sans-serif; fill: #A4B6D4; }
+      .small { font: 600 16px 'IBM Plex Sans', 'Avenir Next', sans-serif; fill: #EEF4FF; }
+      .tiny { font: 500 14px 'IBM Plex Sans', 'Avenir Next', sans-serif; fill: #A4B6D4; }
+    </style>
+  </defs>
+
+  <rect width="1600" height="980" rx="40" fill="url(#bg)"/>
+  <circle cx="290" cy="120" r="220" fill="#7DE2D1" fill-opacity="0.08"/>
+  <circle cx="1330" cy="170" r="210" fill="#B8A2FF" fill-opacity="0.08"/>
+  <circle cx="1210" cy="820" r="250" fill="#F0B15C" fill-opacity="0.06"/>
+
+  <text x="96" y="98" class="eyebrow">Agent Studio Architecture</text>
+  <text x="96" y="150" class="title">Bring-your-own multi-agent control room</text>
+  <text x="96" y="188" class="body">Runtime-agnostic ingest feeds one system-first operator loop: Live, Replay, and Optimize.</text>
+
+  <rect x="84" y="248" width="286" height="586" rx="28" fill="url(#panel)" stroke="url(#stroke)" stroke-width="2"/>
+  <text x="116" y="302" class="eyebrow">Runtime Layer</text>
+  <text x="116" y="346" class="section">External systems</text>
+  <text x="116" y="392" class="body">LangGraph today, generic ingest now, more adapters next.</text>
+
+  <rect x="116" y="430" width="222" height="94" rx="22" fill="#10223F" stroke="#2B4D7A"/>
+  <text x="138" y="467" class="small">LangGraph adapter</text>
+  <text x="138" y="493" class="tiny">Reads assistant or graph, thread, runs,</text>
+  <text x="138" y="515" class="tiny">history, and replay context.</text>
+
+  <rect x="116" y="548" width="222" height="94" rx="22" fill="#10223F" stroke="#2B4D7A"/>
+  <text x="138" y="585" class="small">Generic ingest</text>
+  <text x="138" y="611" class="tiny">JSON, webhooks, internal events, or</text>
+  <text x="138" y="633" class="tiny">your own runtime bridge.</text>
+
+  <rect x="116" y="666" width="222" height="128" rx="22" fill="#10223F" stroke="#2B4D7A"/>
+  <text x="138" y="703" class="small">What arrives</text>
+  <text x="138" y="730" class="tiny">Systems, agents, topology</text>
+  <text x="138" y="756" class="tiny">Executions, spans, metrics</text>
+  <text x="138" y="782" class="tiny">Interventions, evaluations, releases</text>
+
+  <rect x="470" y="248" width="314" height="586" rx="28" fill="url(#panel)" stroke="url(#stroke)" stroke-width="2"/>
+  <text x="502" y="302" class="eyebrow">Control Plane</text>
+  <text x="502" y="346" class="section">Persistent system model</text>
+  <text x="502" y="392" class="body">Registry, topology, traces, history, and release evidence live in one contract.</text>
+
+  <rect x="502" y="430" width="250" height="86" rx="22" fill="#10223F" stroke="#2B4D7A"/>
+  <text x="524" y="467" class="small">Registry and topology</text>
+  <text x="524" y="493" class="tiny">Which systems exist, which agents are in them,</text>
+  <text x="524" y="515" class="tiny">and how work flows between them.</text>
+
+  <rect x="502" y="536" width="250" height="86" rx="22" fill="#10223F" stroke="#2B4D7A"/>
+  <text x="524" y="573" class="small">Execution history</text>
+  <text x="524" y="599" class="tiny">Runs, spans, artifacts, metrics, and fleet pressure.</text>
+
+  <rect x="502" y="642" width="250" height="86" rx="22" fill="#10223F" stroke="#2B4D7A"/>
+  <text x="524" y="679" class="small">Release evidence</text>
+  <text x="524" y="705" class="tiny">Directives, evaluations, release calls, and rollback context.</text>
+
+  <rect x="502" y="748" width="250" height="62" rx="20" fill="#132A4A" stroke="#476C9A"/>
+  <text x="524" y="787" class="small">Blob or file persistence today</text>
+
+  <rect x="884" y="248" width="632" height="586" rx="28" fill="url(#panel)" stroke="url(#stroke)" stroke-width="2"/>
+  <text x="916" y="302" class="eyebrow">Operator Loop</text>
+  <text x="916" y="346" class="section">One room, three working modes</text>
+  <text x="916" y="392" class="body">The operator should move from live pressure, to replay explanation, to release decision without switching mental models.</text>
+
+  <rect x="930" y="442" width="176" height="166" rx="24" fill="#10223F" stroke="#3B6F88" stroke-width="2"/>
+  <text x="956" y="478" class="small">Live</text>
+  <text x="956" y="508" class="tiny">Operate the current system.</text>
+  <text x="956" y="536" class="tiny">See topology, hot agents,</text>
+  <text x="956" y="560" class="tiny">and directive load.</text>
+
+  <rect x="1112" y="442" width="176" height="166" rx="24" fill="#10223F" stroke="#6F62A0" stroke-width="2"/>
+  <text x="1138" y="478" class="small">Replay</text>
+  <text x="1138" y="508" class="tiny">Explain what failed.</text>
+  <text x="1138" y="536" class="tiny">Walk the span tree, compare</text>
+  <text x="1138" y="560" class="tiny">against a healthier control.</text>
+
+  <rect x="1294" y="442" width="176" height="166" rx="24" fill="#10223F" stroke="#A2774D" stroke-width="2"/>
+  <text x="1320" y="478" class="small">Optimize</text>
+  <text x="1320" y="508" class="tiny">Compare interventions.</text>
+  <text x="1320" y="536" class="tiny">Read evaluation deltas and</text>
+  <text x="1320" y="560" class="tiny">make the release call.</text>
+
+  <rect x="930" y="652" width="540" height="130" rx="26" fill="#0E1D36" stroke="#28456B"/>
+  <text x="958" y="690" class="small">How it compounds</text>
+  <text x="958" y="722" class="tiny">As more traces, interventions, and release decisions arrive, Agent Studio gains enough context to expose pressure faster, compare fixes better, and eventually support guarded automation.</text>
+
+  <path d="M370 540C420 540 430 540 470 540" stroke="url(#signal)" stroke-width="6" stroke-linecap="round" filter="url(#glow)"/>
+  <path d="M784 540C840 540 850 540 930 540" stroke="url(#signal)" stroke-width="6" stroke-linecap="round" filter="url(#glow)"/>
+  <path d="M1106 524C1110 524 1112 524 1112 524" stroke="url(#signal)" stroke-width="6" stroke-linecap="round"/>
+  <path d="M1288 524C1290 524 1294 524 1294 524" stroke="url(#signal)" stroke-width="6" stroke-linecap="round"/>
+
+  <text x="96" y="900" class="tiny">Core idea: the runtime remains the source of execution, while Agent Studio becomes the persistent operator surface for system state, replay, and release evidence.</text>
+</svg>

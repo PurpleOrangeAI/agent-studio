@@ -56,6 +56,10 @@ This repo currently gives you:
 
 ![Agent Studio public demo](./docs/assets/agent-studio-demo.png)
 
+## Architecture
+
+![Agent Studio architecture](./docs/assets/agent-studio-architecture.svg)
+
 ## What ships here
 
 - `apps/web` for the public demo shell with `Live`, `Replay`, and `Optimize`
@@ -128,6 +132,8 @@ The key idea is:
 - [Install](./docs/install.md)
 - [Quickstart](./docs/quickstart.md)
 - [Demo](./docs/demo.md)
+- [Demo script](./docs/demo-script.md)
+- [Architecture overview](./docs/architecture-overview.md)
 - [Birdview audit](./docs/birdview-audit-2026-04-22.md)
 - [Top trending plan](./docs/top-trending-plan-2026-04-22.md)
 - [LangGraph adapter](./docs/adapters/langgraph.md)

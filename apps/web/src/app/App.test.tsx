@@ -499,10 +499,12 @@ describe('App shell', () => {
     expect(screen.getByRole('tab', { name: /^live$/i })).toBeInTheDocument();
     expect(screen.getByRole('tab', { name: /^replay$/i })).toBeInTheDocument();
     expect(screen.getByRole('tab', { name: /^optimize$/i })).toBeInTheDocument();
-    expect(screen.getAllByText(/live needs an agent roster before it becomes a real command surface/i).length).toBeGreaterThan(0);
     expect(screen.getAllByRole('heading', { level: 3, name: /weekly operations brief/i }).length).toBeGreaterThan(0);
     expect(screen.getAllByText(/guardrailed candidate/i).length).toBeGreaterThan(0);
     expect(screen.getByText(/promoted the tighter fan-out plan/i)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('tab', { name: /^connect$/i }));
+    expect(await screen.findByRole('heading', { level: 3, name: /fastest shipped adapter path/i })).toBeInTheDocument();
+    expect(screen.getAllByText(/live needs an agent roster before it becomes a real command surface/i).length).toBeGreaterThan(0);
   });
 
   it('renders a live room for an imported system without a seeded workflow mapping', async () => {

@@ -546,6 +546,15 @@ li {
   margin-top: 16px;
 }
 
+.inline-link {
+  color: var(--cyan);
+  text-decoration: none;
+}
+
+.inline-link:hover {
+  text-decoration: underline;
+}
+
 .room-nav__buttons {
   display: grid;
   gap: 12px;
@@ -1195,6 +1204,27 @@ li {
 
 .connection-mode-card__steps li + li {
   margin-top: 8px;
+}
+
+.code-panel {
+  overflow-x: auto;
+  margin: 12px 0 0;
+  padding: 14px 16px;
+  border-radius: 16px;
+  border: 1px solid rgba(125, 226, 209, 0.16);
+  background: rgba(4, 10, 20, 0.68);
+  color: #dff6f1;
+  font: 500 0.9rem/1.55 "IBM Plex Mono", "SFMono-Regular", monospace;
+}
+
+.code-panel code {
+  white-space: pre;
+}
+
+.tiny-copy {
+  margin: 10px 0 0;
+  color: var(--muted);
+  font-size: 0.85rem;
 }
 
 .ingest-grid--compact {

@@ -1,0 +1,33 @@
+name: Adapter request
+description: Request or propose a new runtime adapter
+title: "[Adapter] "
+labels:
+  - adapter
+body:
+  - type: input
+    id: runtime
+    attributes:
+      label: Runtime or framework
+      placeholder: CrewAI, OpenHands, custom internal runtime
+    validations:
+      required: true
+  - type: textarea
+    id: available-data
+    attributes:
+      label: Available runtime data
+      description: What can this runtime expose today?
+      placeholder: systems, agents, topology, runs, spans, metrics, evaluations, releases
+    validations:
+      required: true
+  - type: textarea
+    id: import-path
+    attributes:
+      label: Best import path
+      description: Adapter package, generic ingest, webhook bridge, or SDK?
+    validations:
+      required: true
+  - type: textarea
+    id: use-case
+    attributes:
+      label: Why this adapter matters
+      description: Tie it back to the operator loop.

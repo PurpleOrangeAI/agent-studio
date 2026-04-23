@@ -1,0 +1,5 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Agent Studio live demo
+    url: https://agent-studio-sage.vercel.app
+    about: Start from the public demo before filing a product or UX issue.
