@@ -4,6 +4,7 @@ import {
   filterSystemSummaries,
   filterAgentSummaries,
   filterSystemStateByWindow,
+  loadControlPlaneState,
   summarizeFleet,
   summarizeAgents,
   summarizeSystemReadiness,
@@ -215,5 +216,90 @@ describe('control-plane analytics helpers', () => {
     expect(missingSystem.stageId).toBe('register');
     expect(missingSystem.roomReadiness.find((room) => room.roomId === 'connect')?.state).toBe('next');
     expect(missingSystem.title).toMatch(/register a runtime and system/i);
+  });
+
+  it('loads sparse imported systems without treating missing subresources as a failure', async () => {
+    const fetchMock: typeof fetch = (async (input) => {
+      const url = typeof input === 'string' ? input : input.toString();
+      const pathname = new URL(url, 'https://agent-studio.test').pathname;
+
+      if (pathname === '/api/control/meta') {
+        return new Response(
+          JSON.stringify({
+            item: {
+              mode: 'blob',
+              persistenceEnabled: true,
+              filePath: null,
+              blobPath: 'control-plane/store.json',
+              detail: 'Persistent test store.',
+            },
+          }),
+          { status: 200, headers: { 'content-type': 'application/json' } },
+        );
+      }
+
+      if (pathname === '/api/control/runtimes') {
+        return new Response(
+          JSON.stringify({
+            items: [
+              {
+                runtimeId: 'runtime_imported',
+                kind: 'custom',
+                adapterId: 'custom-ingest',
+                label: 'Imported runtime',
+              },
+            ],
+          }),
+          { status: 200, headers: { 'content-type': 'application/json' } },
+        );
+      }
+
+      if (pathname === '/api/control/systems') {
+        return new Response(
+          JSON.stringify({
+            items: [
+              {
+                systemId: 'system_imported',
+                workspaceId: 'workspace_imported',
+                name: 'Imported system',
+                runtimeIds: ['runtime_imported'],
+                primaryRuntimeId: 'runtime_imported',
+              },
+            ],
+          }),
+          { status: 200, headers: { 'content-type': 'application/json' } },
+        );
+      }
+
+      if (
+        pathname === '/api/control/systems/system_imported/agents' ||
+        pathname === '/api/control/systems/system_imported/executions' ||
+        pathname === '/api/control/systems/system_imported/interventions' ||
+        pathname === '/api/control/systems/system_imported/evaluations' ||
+        pathname === '/api/control/systems/system_imported/releases' ||
+        pathname === '/api/control/systems/system_imported/topology'
+      ) {
+        return new Response(JSON.stringify({ message: 'Not found' }), {
+          status: 404,
+          headers: { 'content-type': 'application/json' },
+        });
+      }
+
+      throw new Error(`Unexpected request: ${pathname}`);
+    }) as typeof fetch;
+
+    const state = await loadControlPlaneState({
+      apiBaseUrl: 'https://agent-studio.test',
+      fetch: fetchMock,
+    });
+
+    expect(state.systems).toHaveLength(1);
+    expect(state.systems[0]?.system.systemId).toBe('system_imported');
+    expect(state.systems[0]?.agents).toEqual([]);
+    expect(state.systems[0]?.topology).toBeNull();
+    expect(state.systems[0]?.executions).toEqual([]);
+    expect(state.systems[0]?.interventions).toEqual([]);
+    expect(state.systems[0]?.evaluations).toEqual([]);
+    expect(state.systems[0]?.releases).toEqual([]);
   });
 });

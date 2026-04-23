@@ -1397,6 +1397,30 @@ async function fetchJson<T>(fetcher: typeof globalThis.fetch, apiBaseUrl: string
   return (await response.json()) as T;
 }
 
+async function fetchJsonOr<T>(
+  fetcher: typeof globalThis.fetch,
+  apiBaseUrl: string,
+  pathname: string,
+  fallback: T,
+  allowedStatuses: number[] = [404],
+): Promise<T> {
+  const response = await fetcher(buildApiUrl(apiBaseUrl, pathname), {
+    headers: {
+      accept: 'application/json',
+    },
+  });
+
+  if (allowedStatuses.includes(response.status)) {
+    return fallback;
+  }
+
+  if (!response.ok) {
+    throw new Error(`Failed to load ${pathname} (${response.status}).`);
+  }
+
+  return (await response.json()) as T;
+}
+
 async function postJson<TInput, TOutput>(
   fetcher: typeof globalThis.fetch,
   apiBaseUrl: string,
@@ -1458,19 +1482,59 @@ export async function loadControlPlaneState(options: LoadControlPlaneStateOption
     systemsPayload.items.map(async (system) => {
       const [agentsPayload, executionsPayload, interventionsPayload, evaluationsPayload, releasesPayload, topologyPayload] =
         await Promise.all([
-          fetchJson<{ items: AgentDefinition[] }>(fetcher, apiBaseUrl, `/api/control/systems/${system.systemId}/agents`),
-          fetchJson<{ items: ExecutionRecord[] }>(fetcher, apiBaseUrl, `/api/control/systems/${system.systemId}/executions`),
-          fetchJson<{ items: InterventionRecord[] }>(fetcher, apiBaseUrl, `/api/control/systems/${system.systemId}/interventions`),
-          fetchJson<{ items: EvaluationRecord[] }>(fetcher, apiBaseUrl, `/api/control/systems/${system.systemId}/evaluations`),
-          fetchJson<{ items: ReleaseDecision[] }>(fetcher, apiBaseUrl, `/api/control/systems/${system.systemId}/releases`),
-          fetchJson<{ item: TopologySnapshot }>(fetcher, apiBaseUrl, `/api/control/systems/${system.systemId}/topology`).catch(() => ({ item: null })),
+          fetchJsonOr<{ items: AgentDefinition[] }>(
+            fetcher,
+            apiBaseUrl,
+            `/api/control/systems/${system.systemId}/agents`,
+            { items: [] },
+          ),
+          fetchJsonOr<{ items: ExecutionRecord[] }>(
+            fetcher,
+            apiBaseUrl,
+            `/api/control/systems/${system.systemId}/executions`,
+            { items: [] },
+          ),
+          fetchJsonOr<{ items: InterventionRecord[] }>(
+            fetcher,
+            apiBaseUrl,
+            `/api/control/systems/${system.systemId}/interventions`,
+            { items: [] },
+          ),
+          fetchJsonOr<{ items: EvaluationRecord[] }>(
+            fetcher,
+            apiBaseUrl,
+            `/api/control/systems/${system.systemId}/evaluations`,
+            { items: [] },
+          ),
+          fetchJsonOr<{ items: ReleaseDecision[] }>(
+            fetcher,
+            apiBaseUrl,
+            `/api/control/systems/${system.systemId}/releases`,
+            { items: [] },
+          ),
+          fetchJsonOr<{ item: TopologySnapshot | null }>(
+            fetcher,
+            apiBaseUrl,
+            `/api/control/systems/${system.systemId}/topology`,
+            { item: null },
+          ),
         ]);
 
       const executionDetails = await Promise.all(
         executionsPayload.items.map(async (execution) => {
           const [spansPayload, metricsPayload] = await Promise.all([
-            fetchJson<{ items: SpanRecord[] }>(fetcher, apiBaseUrl, `/api/control/executions/${execution.executionId}/spans`),
-            fetchJson<{ items: MetricSample[] }>(fetcher, apiBaseUrl, `/api/control/executions/${execution.executionId}/metrics`),
+            fetchJsonOr<{ items: SpanRecord[] }>(
+              fetcher,
+              apiBaseUrl,
+              `/api/control/executions/${execution.executionId}/spans`,
+              { items: [] },
+            ),
+            fetchJsonOr<{ items: MetricSample[] }>(
+              fetcher,
+              apiBaseUrl,
+              `/api/control/executions/${execution.executionId}/metrics`,
+              { items: [] },
+            ),
           ]);
 
           return {
