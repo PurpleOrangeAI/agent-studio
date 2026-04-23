@@ -489,13 +489,16 @@ describe('App shell', () => {
   it('renders the seeded demo control loop', async () => {
     render(<App />);
 
-    expect(await screen.findByLabelText(/^runtime$/i)).toHaveValue('runtime_demo_seeded');
-    expect(screen.getByLabelText(/^system$/i)).toHaveDisplayValue(/weekly operations brief/i);
+    expect((await screen.findAllByText(/seeded demo runtime/i)).length).toBeGreaterThan(0);
+    expect(screen.getAllByText(/weekly operations brief/i).length).toBeGreaterThan(0);
+    expect(screen.queryByLabelText(/^runtime$/i)).not.toBeInTheDocument();
+    expect(screen.queryByLabelText(/^system$/i)).not.toBeInTheDocument();
     expect(screen.getByRole('heading', { level: 1, name: /agent studio/i })).toBeInTheDocument();
-    expect(screen.getByRole('heading', { level: 2, name: /registered systems/i })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { level: 2, name: /registered system/i })).toBeInTheDocument();
     expect(screen.getByRole('heading', { level: 2, name: /why agent studio is needed/i })).toBeInTheDocument();
     expect(screen.getByRole('heading', { level: 2, name: /^live, replay, optimize$/i })).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: /connect, operate, and improve a real agent system/i })).toBeInTheDocument();
+    expect(screen.queryByLabelText(/filter systems/i)).not.toBeInTheDocument();
     expect(screen.getByRole('tab', { name: /^live$/i })).toBeInTheDocument();
     expect(screen.getByRole('tab', { name: /^replay$/i })).toBeInTheDocument();
     expect(screen.getByRole('tab', { name: /^optimize$/i })).toBeInTheDocument();

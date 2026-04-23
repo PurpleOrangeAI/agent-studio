@@ -59,39 +59,50 @@ export function SystemCatalogPanel({ systems, selectedSystemId, onSelectSystem }
       return haystacks.some((value) => value.includes(normalizedQuery));
     });
   }, [focus, query, summaries]);
+  const isSingleSystemMode = filteredSystems.length === 1 && summaries.length === 1;
 
   return (
-    <section className="surface system-catalog">
+    <section className={`surface system-catalog ${isSingleSystemMode ? 'system-catalog--compact' : ''}`}>
       <div className="section-header">
         <div>
           <p className="eyebrow">System catalog</p>
-          <h2>Registered systems</h2>
-          <p className="muted">Pick the system you want to operate and manage, then use Live, Replay, and Optimize against that system instead of a loose demo workflow.</p>
+          <h2>{isSingleSystemMode ? 'Registered system' : 'Registered systems'}</h2>
+          <p className="muted">
+            {isSingleSystemMode
+              ? 'The public demo is currently focused on one system, so this surface stays tight and lets the rest of the control room carry the story.'
+              : 'Pick the system you want to operate and manage, then use Live, Replay, and Optimize against that system instead of a loose demo workflow.'}
+          </p>
         </div>
-        <span className="meta-chip">{filteredSystems.length} visible</span>
+        <span className="meta-chip">
+          {filteredSystems.length} visible
+        </span>
       </div>
-      <label className="text-field">
-        <span>Filter systems</span>
-        <input
-          aria-label="Filter systems"
-          type="text"
-          value={query}
-          onChange={(event) => setQuery(event.target.value)}
-          placeholder="Search by system, runtime, or agent"
-        />
-      </label>
-      <div className="history-toolbar">
-        {SYSTEM_CATALOG_FOCUS_OPTIONS.map((option) => (
-          <button
-            key={option.id}
-            type="button"
-            className={`history-filter ${focus === option.id ? 'history-filter--active' : ''}`}
-            onClick={() => setFocus(option.id)}
-          >
-            {option.label}
-          </button>
-        ))}
-      </div>
+      {isSingleSystemMode ? null : (
+        <>
+          <label className="text-field">
+            <span>Filter systems</span>
+            <input
+              aria-label="Filter systems"
+              type="text"
+              value={query}
+              onChange={(event) => setQuery(event.target.value)}
+              placeholder="Search by system, runtime, or agent"
+            />
+          </label>
+          <div className="history-toolbar">
+            {SYSTEM_CATALOG_FOCUS_OPTIONS.map((option) => (
+              <button
+                key={option.id}
+                type="button"
+                className={`history-filter ${focus === option.id ? 'history-filter--active' : ''}`}
+                onClick={() => setFocus(option.id)}
+              >
+                {option.label}
+              </button>
+            ))}
+          </div>
+        </>
+      )}
       <div className="system-catalog__grid">
         {filteredSystems.map(({ systemState, summary }) => {
           const pressureAgentLabel = getAgentLabel(systemState, summary.pressureAgentId ?? undefined);
@@ -100,7 +111,7 @@ export function SystemCatalogPanel({ systems, selectedSystemId, onSelectSystem }
             <button
               key={systemState.system.systemId}
               type="button"
-              className={`system-card ${selectedSystemId === systemState.system.systemId ? 'system-card--active' : ''}`}
+              className={`system-card ${selectedSystemId === systemState.system.systemId ? 'system-card--active' : ''} ${isSingleSystemMode ? 'system-card--solo' : ''}`}
               onClick={() => onSelectSystem(systemState.system.systemId)}
             >
               <div className="system-card__header">

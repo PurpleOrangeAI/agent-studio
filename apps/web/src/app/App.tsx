@@ -279,7 +279,9 @@ export function App() {
         }))
       : demoState?.runtimeOptions ?? [];
   const selectedRuntime = runtimeOptions.find((option) => option.id === runtimeId) ?? null;
+  const hasSingleRuntime = runtimeOptions.length === 1;
   const selectedControlPlaneSystem = selectedSystemState ?? (workflow ? controlPlaneState?.systemsByWorkflowId[workflow.workflowId] ?? null : null);
+  const hasSingleSystem = sortedSystems.length === 1;
   const selectedSystemSummary = summarizeSystem(selectedControlPlaneSystem);
   const systemReadiness = summarizeSystemReadiness(selectedControlPlaneSystem);
   const roomReadinessById = Object.fromEntries(systemReadiness.roomReadiness.map((room) => [room.roomId, room])) as Record<
@@ -619,50 +621,79 @@ export function App() {
               <div className="hero__controls-header">
                 <div>
                   <p className="eyebrow">Command surface</p>
-                  <h2>Runtime and system</h2>
+                  <h2>{hasSingleRuntime && hasSingleSystem ? 'Public demo surface' : 'Runtime and system'}</h2>
                 </div>
-                <span className="meta-chip">System-first operator view</span>
+                <span className="meta-chip">{hasSingleRuntime && hasSingleSystem ? 'Lean first-load shell' : 'System-first operator view'}</span>
               </div>
-              <label className="select-field">
-                <span>Runtime</span>
-                <select aria-label="Runtime" value={runtimeId} onChange={(event) => setRuntimeId(event.target.value)}>
-                  {runtimeOptions.map((option) => (
-                    <option key={option.id} value={option.id}>
-                      {option.label}
-                    </option>
-                  ))}
-                </select>
-                <small>{selectedRuntime?.detail}</small>
-              </label>
-              {sortedSystems.length ? (
-                <label className="select-field">
-                  <span>System</span>
-                  <select
-                    aria-label="System"
-                    value={selectedControlPlaneSystem?.system.systemId ?? ''}
-                    onChange={(event) => handleSystemChange(event.target.value)}
-                  >
-                    {sortedSystems.map((systemState) => (
-                      <option key={systemState.system.systemId} value={systemState.system.systemId}>
-                        {systemState.system.name}
-                      </option>
-                    ))}
-                  </select>
-                  <small>{selectedControlPlaneSystem?.system.description ?? currentStateDescription}</small>
-                </label>
-              ) : (
-                <label className="select-field">
-                  <span>Workflow</span>
-                  <select aria-label="Workflow" value={workflowId} onChange={(event) => setWorkflowId(event.target.value)}>
-                    {demoState.workflows.map((option) => (
-                      <option key={option.workflowId} value={option.workflowId}>
-                        {option.name}
-                      </option>
-                    ))}
-                  </select>
-                  <small>{workflow?.description ?? currentStateDescription}</small>
-                </label>
-              )}
+              <div className="hero__summary-stack">
+                {hasSingleRuntime ? (
+                  <article className="hero__summary-card hero__summary-card--static">
+                    <div className="hero__summary-copy">
+                      <span className="eyebrow">Runtime</span>
+                      <strong>{selectedRuntime?.label ?? 'Seeded runtime'}</strong>
+                      <p>{selectedRuntime?.detail ?? 'Runtime metadata will appear here once the control plane is connected.'}</p>
+                    </div>
+                    <div className="hero__summary-meta">
+                      <span className="meta-chip">Read-only walkthrough</span>
+                    </div>
+                  </article>
+                ) : (
+                  <label className="select-field">
+                    <span>Runtime</span>
+                    <select aria-label="Runtime" value={runtimeId} onChange={(event) => setRuntimeId(event.target.value)}>
+                      {runtimeOptions.map((option) => (
+                        <option key={option.id} value={option.id}>
+                          {option.label}
+                        </option>
+                      ))}
+                    </select>
+                    <small>{selectedRuntime?.detail}</small>
+                  </label>
+                )}
+                {sortedSystems.length ? (
+                  hasSingleSystem ? (
+                    <article className="hero__summary-card">
+                      <div className="hero__summary-copy">
+                        <span className="eyebrow">System</span>
+                        <strong>{selectedControlPlaneSystem?.system.name ?? currentStateName}</strong>
+                        <p>{selectedControlPlaneSystem?.system.description ?? currentStateDescription}</p>
+                      </div>
+                      <div className="hero__summary-meta">
+                        <span className="meta-chip">{selectedSystemSummary?.agentCount ?? 0} agents</span>
+                        <span className="meta-chip">{selectedSystemSummary?.executionCount ?? 0} executions</span>
+                      </div>
+                    </article>
+                  ) : (
+                    <label className="select-field">
+                      <span>System</span>
+                      <select
+                        aria-label="System"
+                        value={selectedControlPlaneSystem?.system.systemId ?? ''}
+                        onChange={(event) => handleSystemChange(event.target.value)}
+                      >
+                        {sortedSystems.map((systemState) => (
+                          <option key={systemState.system.systemId} value={systemState.system.systemId}>
+                            {systemState.system.name}
+                          </option>
+                        ))}
+                      </select>
+                      <small>{selectedControlPlaneSystem?.system.description ?? currentStateDescription}</small>
+                    </label>
+                  )
+                ) : (
+                  <label className="select-field">
+                    <span>Workflow</span>
+                    <select aria-label="Workflow" value={workflowId} onChange={(event) => setWorkflowId(event.target.value)}>
+                      {demoState.workflows.map((option) => (
+                        <option key={option.workflowId} value={option.workflowId}>
+                          {option.name}
+                        </option>
+                      ))}
+                    </select>
+                    <small>{workflow?.description ?? currentStateDescription}</small>
+                  </label>
+                )}
+              </div>
             </div>
             <div className="hero__status-grid">
               <article className="hero-signal hero-signal--live">
