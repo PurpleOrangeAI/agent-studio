@@ -1,7 +1,13 @@
 import type { Replay, Run } from '@agent-studio/contracts';
 
 import type { ControlPlaneSystemState } from '../../app/control-plane';
-import { getAgentLabel, getExecutionForRun, getExecutionMetrics, getExecutionSpans } from '../../app/control-plane';
+import {
+  getAgentLabel,
+  getExecutionForRun,
+  getExecutionMetrics,
+  getExecutionSpans,
+  summarizeSystemReadiness,
+} from '../../app/control-plane';
 import { formatCredits, formatDateTime, formatDuration, titleCaseStatus } from '../../app/format';
 import {
   buildReplayCompareNarrative,
@@ -74,6 +80,7 @@ function renderSpanTreeNode(node: ReplaySpanTreeNode, controlPlane?: ControlPlan
 }
 
 export function ReplayPanel({ replay, baselineRun, controlPlane }: ReplayPanelProps) {
+  const readiness = summarizeSystemReadiness(controlPlane);
   const failedStep = replay.stepExecutions.find((step) => step.status === 'failed');
   const execution = getExecutionForRun(controlPlane, replay.run.runId);
   const spans = getExecutionSpans(controlPlane, execution?.executionId);
@@ -93,6 +100,24 @@ export function ReplayPanel({ replay, baselineRun, controlPlane }: ReplayPanelPr
   const replayBody = hasExecutionTree
     ? `Replay is reading the control-plane trace directly: ${spans.length} spans across ${observedAgentCount || 1} tracked agents in execution ${execution?.executionId}, pinned against ${compareSummary.baselineLabel}.`
     : `Replay falls back to recorded step summaries when no execution trace is available, while still comparing ${compareSummary.selectedLabel} to ${compareSummary.baselineLabel}.`;
+  const replayTrustEyebrow = hasExecutionTree
+    ? 'Trace-backed replay'
+    : !controlPlane
+      ? 'Summary fallback'
+      : readiness.executionCount === 0
+      ? 'Replay still needs executions'
+      : readiness.spanCount === 0
+        ? 'Replay still needs spans'
+        : 'Summary fallback';
+  const replayTrustBody = hasExecutionTree
+    ? `This room is reading imported executions and spans directly. The next move is to confirm the break here, then carry the fix into Optimize.`
+    : !controlPlane
+      ? 'Replay can still show the recorded step summary, but import executions and spans if you want the failing path to be execution-native and trustworthy.'
+      : readiness.executionCount === 0
+      ? 'Import the first execution so Replay can stop behaving like a static comparison and start following a real run.'
+      : readiness.spanCount === 0
+        ? 'Replay can see the run, but it still needs span breakdowns before the failing path becomes trustworthy.'
+        : 'Replay is usable, but it is still leaning on recorded step summaries instead of an execution-native span tree.';
   const compareCardClass =
     compareSummary.creditsDelta != null &&
     compareSummary.durationDeltaMs != null &&
@@ -114,6 +139,10 @@ export function ReplayPanel({ replay, baselineRun, controlPlane }: ReplayPanelPr
         <p className="feature-summary">
           {replayHeadline} {replayBody}
         </p>
+        <div className={`inline-callout inline-callout--${hasExecutionTree ? 'success' : 'warning'}`}>
+          <span className="eyebrow">{replayTrustEyebrow}</span>
+          <p>{replayTrustBody}</p>
+        </div>
         <div className="signal-band">
           <article className="signal-band__card">
             <span className="eyebrow">Baseline</span>

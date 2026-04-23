@@ -255,6 +255,7 @@ describe('ReplayPanel', () => {
     const { container } = render(<ReplayPanel replay={replay} baselineRun={baselineRun} controlPlane={controlPlaneFixture} />);
 
     expect(screen.getByRole('heading', { name: 'Execution tree' })).toBeInTheDocument();
+    expect(screen.getByText('Trace-backed replay')).toBeInTheDocument();
     expect(screen.getByText('Baseline control')).toBeInTheDocument();
     expect(screen.getByText('Spend +3 credits / Time +1m 20s')).toBeInTheDocument();
     expect(screen.getByText('1 root spans')).toBeInTheDocument();
@@ -267,6 +268,7 @@ describe('ReplayPanel', () => {
     render(<ReplayPanel replay={replay} baselineRun={baselineRun} controlPlane={null} />);
 
     expect(screen.getByRole('heading', { name: 'Step-by-step replay' })).toBeInTheDocument();
+    expect(screen.getByText('Summary fallback')).toBeInTheDocument();
     expect(screen.getByText('3 recorded steps')).toBeInTheDocument();
     expect(screen.queryByRole('heading', { name: 'Execution tree' })).not.toBeInTheDocument();
   });

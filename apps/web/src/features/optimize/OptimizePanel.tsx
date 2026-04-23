@@ -10,6 +10,7 @@ import {
   getLatestEvaluation,
   getLatestReleaseDecision,
   getMetricDelta,
+  summarizeSystemReadiness,
   summarizeAgents,
 } from '../../app/control-plane';
 import { formatCredits, formatDateTime, formatDelta, formatDuration, titleCaseStatus } from '../../app/format';
@@ -172,6 +173,7 @@ export function OptimizePanel({
   promotionSummary,
   controlPlane,
 }: OptimizePanelProps) {
+  const readiness = summarizeSystemReadiness(controlPlane);
   const latestEvaluation = getLatestEvaluation(controlPlane);
   const latestRelease = getLatestReleaseDecision(controlPlane);
   const latestIntervention = controlPlane?.interventions[0] ?? null;
@@ -191,6 +193,7 @@ export function OptimizePanel({
         : latestRelease?.decision
           ? formatTokenLabel(latestRelease.decision)
           : 'Promotion-ready';
+  const hasReleaseEvidence = Boolean(latestEvaluation || latestRelease);
   const releaseLogic =
     latestEvaluation?.summary ??
     latestRelease?.summary ??
@@ -281,6 +284,16 @@ export function OptimizePanel({
         <p className="feature-summary">
           {latestRelease?.summary ?? promotionSummary} Optimize now stays scoped to interventions and release work that the control plane can already explain.
         </p>
+        <div className={`inline-callout inline-callout--${hasReleaseEvidence ? 'success' : 'warning'}`}>
+          <span className="eyebrow">{hasReleaseEvidence ? 'Evidence-backed optimize' : 'Release evidence still missing'}</span>
+          <p>
+            {hasReleaseEvidence
+              ? 'This room is reading imported evaluations or release decisions. Use it to pressure-test the next change, not to invent a second release workflow.'
+              : readiness.interventionCount > 0
+                ? 'You already have directives, but Optimize still needs evaluations or release decisions before the release call becomes trustworthy.'
+                : 'Import evaluations or release decisions before trusting Optimize as a real release workbench.'}
+          </p>
+        </div>
         <div className="metric-grid">
           <div className="metric-card">
             <span>Baseline</span>
@@ -320,7 +333,7 @@ export function OptimizePanel({
             </p>
           </article>
         </div>
-        <div className="inline-callout inline-callout--success">
+        <div className={`inline-callout inline-callout--${hasReleaseEvidence ? 'success' : 'warning'}`}>
           <span className="eyebrow">Release logic</span>
           <p>{releaseLogic}</p>
         </div>

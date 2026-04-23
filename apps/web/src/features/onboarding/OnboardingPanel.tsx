@@ -1,5 +1,6 @@
 import type { ControlPlaneState, ControlPlaneSystemState } from '../../app/control-plane';
 import { summarizeSystemReadiness } from '../../app/control-plane';
+import type { ViewId } from '../../app/routes';
 
 interface OnboardingPanelProps {
   onDismiss: () => void;
@@ -8,6 +9,7 @@ interface OnboardingPanelProps {
   controlPlaneState?: ControlPlaneState | null;
   systemState?: ControlPlaneSystemState | null;
   runtimeLabel?: string | null;
+  currentView: ViewId;
 }
 
 const MANAGEMENT_STEPS = [
@@ -36,9 +38,12 @@ export function OnboardingPanel({
   controlPlaneState,
   systemState,
   runtimeLabel,
+  currentView,
 }: OnboardingPanelProps) {
   const readiness = summarizeSystemReadiness(systemState);
   const systemName = systemState?.system.name ?? 'your imported system';
+  const compactMode = readiness.stageId === 'operational' && currentView !== 'connect';
+  const roomGuide = readiness.roomReadiness.filter((room) => room.roomId !== 'overview');
   const connectionSteps = [
     {
       title: '1. Create the system home',
@@ -61,6 +66,73 @@ export function OnboardingPanel({
       ready: readiness.evaluationCount > 0 || readiness.releaseCount > 0,
     },
   ];
+
+  if (compactMode) {
+    return (
+      <section className="surface onboarding-panel onboarding-panel--compact">
+        <div className="onboarding-panel__header">
+          <div>
+            <p className="eyebrow">Operator guide</p>
+            <h2>Operate the system, then come back to Connect only when evidence changes</h2>
+            <p className="muted">
+              <strong>{systemName}</strong> is already far enough along that the core job is operating the loop, not
+              reading setup instructions.
+            </p>
+          </div>
+          <button className="ghost-button" type="button" onClick={onDismiss}>
+            Hide panel
+          </button>
+        </div>
+
+        <div className="inline-callout inline-callout--success">
+          <span className="eyebrow">Current next step</span>
+          <p>
+            <strong>{readiness.title}</strong> {readiness.body}
+          </p>
+          <div className="guide-actions">
+            <button className="control-strip__primary" type="button" onClick={onOpenOverview}>
+              Open Overview
+            </button>
+            <button className="ghost-button" type="button" onClick={onOpenConnect}>
+              Open Connect
+            </button>
+            <span className="meta-chip">
+              {readiness.completedSteps}/{readiness.totalSteps} stages ready
+            </span>
+          </div>
+        </div>
+
+        <div className="onboarding-rail">
+          {roomGuide.map((room) => (
+            <article key={room.roomId} className={`onboarding-rail__card onboarding-rail__card--${room.state}`}>
+              <div className="guide-step__header">
+                <strong>{room.roomId.charAt(0).toUpperCase() + room.roomId.slice(1)}</strong>
+                <span className="meta-chip">{room.label}</span>
+              </div>
+              <p>{room.detail}</p>
+            </article>
+          ))}
+        </div>
+
+        <div className="boundary-note">
+          <strong>Current system:</strong> {systemName}
+          {runtimeLabel ? (
+            <>
+              {' '}
+              on <strong>{runtimeLabel}</strong>
+            </>
+          ) : null}
+          . <strong>Storage:</strong>{' '}
+          {controlPlaneState?.storage.mode === 'blob'
+            ? 'persistent hosted control-plane store'
+            : controlPlaneState?.storage.mode === 'file'
+              ? 'persistent file-backed registry'
+              : 'ephemeral in-memory demo store'}
+          .
+        </div>
+      </section>
+    );
+  }
 
   return (
     <section className="surface onboarding-panel">
@@ -127,14 +199,25 @@ export function OnboardingPanel({
         </section>
       </div>
 
-      <div className="loop-grid">
-        {MANAGEMENT_STEPS.map((step) => (
-          <article key={step.title} className="loop-grid__card">
-            <h3>{step.title}</h3>
-            <p>{step.body}</p>
-          </article>
-        ))}
-      </div>
+      {currentView !== 'connect' ? (
+        <div className="loop-grid">
+          {MANAGEMENT_STEPS.map((step) => (
+            <article key={step.title} className="loop-grid__card">
+              <h3>{step.title}</h3>
+              <p>{step.body}</p>
+            </article>
+          ))}
+        </div>
+      ) : (
+        <div className="inline-callout">
+          <span className="eyebrow">Connect focus</span>
+          <p>
+            Stay here only long enough to register the next missing layer. Once the system home, roster, traces, or
+            release evidence land, move back into Overview, Live, Replay, or Optimize to operate the system instead of
+            the import form.
+          </p>
+        </div>
+      )}
 
       <div className="boundary-note">
         <strong>Current system:</strong> {systemName}

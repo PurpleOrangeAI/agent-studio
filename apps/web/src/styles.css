@@ -378,7 +378,8 @@ li {
 .loop-grid,
 .overview-grid,
 .advanced-grid,
-.guide-grid {
+.guide-grid,
+.onboarding-rail {
   display: grid;
   gap: 16px;
 }
@@ -401,10 +402,51 @@ li {
   margin-top: 20px;
 }
 
+.onboarding-rail {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  margin-top: 18px;
+}
+
+.onboarding-rail--compact {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
 .loop-grid__card,
 .overview-card {
   border-radius: 22px;
   padding: 18px;
+}
+
+.onboarding-panel--compact {
+  padding-bottom: 20px;
+}
+
+.onboarding-rail__card {
+  border-radius: 20px;
+  padding: 16px;
+  border: 1px solid var(--border);
+  background: rgba(255, 255, 255, 0.025);
+}
+
+.onboarding-rail__card p {
+  margin: 10px 0 0;
+  color: var(--muted);
+}
+
+.onboarding-rail__card--ready {
+  border-color: rgba(141, 229, 167, 0.24);
+  background: rgba(141, 229, 167, 0.07);
+}
+
+.onboarding-rail__card--partial {
+  border-color: rgba(240, 177, 92, 0.24);
+  background: rgba(240, 177, 92, 0.07);
+}
+
+.onboarding-rail__card--needs-data,
+.onboarding-rail__card--next {
+  border-color: rgba(255, 142, 130, 0.24);
+  background: rgba(255, 142, 130, 0.07);
 }
 
 .loop-grid__card p,
@@ -1944,6 +1986,7 @@ li {
   .connect-grid,
   .connect-split,
   .loop-grid,
+  .onboarding-rail,
   .overview-grid,
   .ingest-grid,
   .analytics-grid,

@@ -34,18 +34,14 @@ const INITIAL_REGISTRATION_FORM: RegistrationFormState = {
   workspaceId: 'workspace_imported',
 };
 
-const MANAGEMENT_AREAS = [
+const AFTER_CONNECT_AREAS = [
   {
     title: 'Overview',
-    body: 'Choose the system, inspect the fleet, and decide which agent or room deserves attention first.',
-  },
-  {
-    title: 'Agent roster',
-    body: 'Use the roster to inspect capabilities, latest trace activity, failures, and active directives per agent.',
+    body: 'Choose the system, inspect fleet pressure, then decide which room deserves attention first.',
   },
   {
     title: 'Replay',
-    body: 'Use Replay once executions and spans exist. That is where the real break path becomes clear.',
+    body: 'Use Replay once executions and spans exist. That is where the real break path becomes clear enough to act on.',
   },
   {
     title: 'Optimize',
@@ -466,6 +462,7 @@ export function ConnectPanel({ selectedSystem, storage, onRefresh, onNavigate }:
   const nextTemplateId = getNextTemplateId(readiness);
   const nextTemplateAction = nextTemplateId ? getTemplateCopy(nextTemplateId) : null;
   const suggestedView = getBestReadyView(readiness);
+  const roomGuide = readiness.roomReadiness.filter((room) => !['overview', 'connect'].includes(room.roomId));
 
   function renderSuccessActions() {
     const actions: Array<{ id: string; label: string; onClick: () => void; primary?: boolean }> = [];
@@ -550,14 +547,41 @@ export function ConnectPanel({ selectedSystem, storage, onRefresh, onNavigate }:
         {!storage?.filePath && storage?.blobPath ? <code>{storage.blobPath}</code> : null}
       </div>
 
+      <div className={`inline-callout ${readiness.stageId === 'operational' ? 'inline-callout--success' : ''}`}>
+        <span className="eyebrow">Next missing layer</span>
+        <p>
+          <strong>{readiness.title}</strong> {readiness.body}
+        </p>
+        <div className="guide-actions">
+          {nextTemplateId && nextTemplateAction ? (
+            <button type="button" className="control-strip__primary" onClick={() => applyTemplate(nextTemplateId)}>
+              {nextTemplateAction.label}
+            </button>
+          ) : (
+            <button type="button" className="control-strip__primary" onClick={() => onNavigate(suggestedView)}>
+              Open {suggestedView.charAt(0).toUpperCase() + suggestedView.slice(1)}
+            </button>
+          )}
+          <button type="button" className="ghost-button" onClick={() => onNavigate('overview')}>
+            Open Overview
+          </button>
+          <span className="meta-chip">
+            {readiness.completedSteps}/{readiness.totalSteps} stages ready
+          </span>
+        </div>
+      </div>
+
       <div className="guide-grid">
         <section className="mini-surface">
-          <p className="eyebrow">Current path</p>
-          <h3>{readiness.title}</h3>
-          <p className="muted">{readiness.body}</p>
-          <div className="guide-stack">
-            {readiness.roomReadiness.map((room) => (
-              <article key={room.roomId} className={`guide-step guide-step--${room.state}`}>
+          <p className="eyebrow">Room unlocks</p>
+          <h3>What this system can do right now</h3>
+          <p className="muted">
+            Connect should make the next room obvious. Live needs roster plus topology, Replay needs execution traces,
+            and Optimize needs evaluation or release evidence.
+          </p>
+          <div className="onboarding-rail onboarding-rail--compact">
+            {roomGuide.map((room) => (
+              <article key={room.roomId} className={`onboarding-rail__card onboarding-rail__card--${room.state}`}>
                 <div className="guide-step__header">
                   <strong>{room.roomId.charAt(0).toUpperCase() + room.roomId.slice(1)}</strong>
                   <span className="meta-chip">{room.label}</span>
@@ -592,25 +616,6 @@ export function ConnectPanel({ selectedSystem, storage, onRefresh, onNavigate }:
                 <span>{template.body}</span>
               </button>
             ))}
-          </div>
-        </section>
-
-        <section className="mini-surface">
-          <p className="eyebrow">What unlocks next</p>
-          <h3>Use import order on purpose</h3>
-          <div className="guide-stack">
-            <article className="guide-step guide-step--ready">
-              <strong>Agents + topology</strong>
-              <p>Live becomes an operator surface instead of a static placeholder.</p>
-            </article>
-            <article className="guide-step guide-step--ready">
-              <strong>Executions + spans</strong>
-              <p>Replay stops guessing and starts showing the real break tree.</p>
-            </article>
-            <article className="guide-step guide-step--ready">
-              <strong>Evaluations + releases</strong>
-              <p>Optimize becomes a release workbench instead of a hypothetical lab.</p>
-            </article>
           </div>
         </section>
       </div>
@@ -670,10 +675,10 @@ export function ConnectPanel({ selectedSystem, storage, onRefresh, onNavigate }:
 
       <div className="guide-grid">
         <section className="mini-surface">
-          <p className="eyebrow">Manage after connect</p>
-          <h3>How to manage systems and agents</h3>
+          <p className="eyebrow">After import</p>
+          <h3>Where to go next</h3>
           <div className="guide-stack">
-            {MANAGEMENT_AREAS.map((area) => (
+            {AFTER_CONNECT_AREAS.map((area) => (
               <article key={area.title} className="guide-step guide-step--ready">
                 <strong>{area.title}</strong>
                 <p>{area.body}</p>

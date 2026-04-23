@@ -704,6 +704,7 @@ export function App() {
             controlPlaneState={controlPlaneState}
             systemState={selectedControlPlaneSystem}
             runtimeLabel={selectedRuntime?.label ?? null}
+            currentView={selectedView}
           />
         ) : null}
 
