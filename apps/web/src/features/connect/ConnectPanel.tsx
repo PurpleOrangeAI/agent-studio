@@ -446,7 +446,7 @@ export function ConnectPanel({ selectedSystem, storage, onRefresh }: ConnectPane
       </div>
 
       <div className="guide-grid">
-        <LangGraphQuickstartPanel />
+        <LangGraphQuickstartPanel systemName={systemName} readiness={readiness} />
 
         <section className="mini-surface">
           <p className="eyebrow">Import templates</p>

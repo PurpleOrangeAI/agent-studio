@@ -504,6 +504,9 @@ describe('App shell', () => {
     expect(screen.getByText(/promoted the tighter fan-out plan/i)).toBeInTheDocument();
     fireEvent.click(screen.getByRole('tab', { name: /^connect$/i }));
     expect(await screen.findByRole('heading', { level: 3, name: /fastest shipped adapter path/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /copy env block/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /copy import command/i })).toBeInTheDocument();
+    expect(screen.getByText(/after import, you should see/i)).toBeInTheDocument();
     expect(screen.getAllByText(/live needs an agent roster before it becomes a real command surface/i).length).toBeGreaterThan(0);
   });
 

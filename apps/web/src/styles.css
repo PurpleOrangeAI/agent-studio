@@ -898,6 +898,11 @@ li {
   background: rgba(255, 255, 255, 0.05);
 }
 
+.ghost-button--small {
+  padding: 8px 12px;
+  font-size: 0.85rem;
+}
+
 .room-tab--active {
   background:
     linear-gradient(180deg, rgba(125, 226, 209, 0.16), rgba(184, 162, 255, 0.08)),
@@ -1208,13 +1213,17 @@ li {
 
 .code-panel {
   overflow-x: auto;
-  margin: 12px 0 0;
+  margin: 0;
   padding: 14px 16px;
   border-radius: 16px;
   border: 1px solid rgba(125, 226, 209, 0.16);
   background: rgba(4, 10, 20, 0.68);
   color: #dff6f1;
   font: 500 0.9rem/1.55 "IBM Plex Mono", "SFMono-Regular", monospace;
+}
+
+.code-panel-card {
+  margin-top: 12px;
 }
 
 .code-panel code {
